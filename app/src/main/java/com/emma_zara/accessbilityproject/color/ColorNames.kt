@@ -52,6 +52,7 @@ object ColorNames {
         NamedColor("Dusty Purple", RgbColor(130, 105, 150)),
         NamedColor("Indigo", RgbColor(75, 0, 130)),
         NamedColor("Navy", RgbColor(0, 0, 128)),
+        NamedColor("Navy", RgbColor(30, 40, 80)),          // the dull navy that real clothes usually are
         NamedColor("Dark Blue", RgbColor(0, 0, 180)),
         NamedColor("Blue", RgbColor(0, 0, 255)),
         NamedColor("Royal Blue", RgbColor(65, 105, 225)),

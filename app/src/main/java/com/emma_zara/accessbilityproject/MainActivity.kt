@@ -22,7 +22,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import com.emma_zara.accessbilityproject.closet.ClosetRepository
 import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.settings.AppSettings
 import com.emma_zara.accessbilityproject.settings.AppTheme
@@ -31,6 +33,7 @@ import com.emma_zara.accessbilityproject.ui.components.AText
 import com.emma_zara.accessbilityproject.ui.screens.IdentifyScreen
 import com.emma_zara.accessbilityproject.ui.screens.SettingsScreen
 import com.emma_zara.accessbilityproject.ui.screens.WheelScreen
+import com.emma_zara.accessbilityproject.ui.screens.closet.ClosetTab
 import com.emma_zara.accessbilityproject.ui.theme.AccessbilityProjectTheme
 
 class MainActivity : ComponentActivity() {
@@ -67,6 +70,7 @@ class MainActivity : ComponentActivity() {
 /** The tabs at the bottom of the screen. Add new features (like the Closet) here later. */
 enum class Tab(val label: String, @param:DrawableRes val icon: Int) {
     IDENTIFY("Identify", R.drawable.ic_camera),
+    CLOSET("Closet", R.drawable.ic_closet),
     WHEEL("Color wheel", R.drawable.ic_palette),
     SETTINGS("Settings", R.drawable.ic_settings),
 }
@@ -76,6 +80,9 @@ fun App(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
     var tab by rememberSaveable { mutableStateOf(Tab.IDENTIFY) }
     // The color currently being looked at, shared between the Identify and Color wheel tabs
     var color by remember { mutableStateOf(RgbColor(0x1E, 0x3A, 0x8A)) }
+    // The digital closet, saved on the phone
+    val context = LocalContext.current
+    val closet = remember { ClosetRepository(context.applicationContext) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -99,6 +106,7 @@ fun App(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
                     onColorChange = { color = it },
                     onOpenInWheel = { tab = Tab.WHEEL },
                 )
+                Tab.CLOSET -> ClosetTab(closet)
                 Tab.WHEEL -> WheelScreen(color = color, onColorChange = { color = it })
                 Tab.SETTINGS -> SettingsScreen(settings = settings, onChange = onSettingsChange)
             }

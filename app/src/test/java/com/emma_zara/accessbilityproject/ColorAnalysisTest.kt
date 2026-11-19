@@ -32,6 +32,7 @@ class ColorAnalysisTest {
         assertEquals("Moss", ColorNames.nearest(RgbColor(0x6B, 0x6B, 0x4C)).name)
         assertEquals("Hunter Green", ColorNames.nearest(RgbColor(0x4C, 0x6B, 0x5B)).name)
         assertEquals("Eggplant", ColorNames.nearest(RgbColor(0x5B, 0x4C, 0x6B)).name)
+        assertEquals("Navy", ColorNames.nearest(RgbColor(0x19, 0x23, 0x55)).name)
         assertEquals("Rosewood", ColorNames.nearest(RgbColor(0x6B, 0x4C, 0x4D)).name)
     }
 

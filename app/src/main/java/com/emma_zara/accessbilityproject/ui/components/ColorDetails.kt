@@ -97,9 +97,10 @@ fun ColorHeroCard(analysis: ColorAnalysis, modifier: Modifier = Modifier, showDe
 fun MatchingColorsCard(
     analysis: ColorAnalysis,
     modifier: Modifier = Modifier,
+    title: String = "Goes well with",
     onColorClick: ((RgbColor) -> Unit)? = null,
 ) {
-    SectionCard(modifier, title = "Goes well with") {
+    SectionCard(modifier, title = title) {
         HarmonyGroup("Opposite (complementary)", "Bold contrast", listOf(analysis.complementary), onColorClick)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         HarmonyGroup("Neighbors (analogous)", "Calm and matching", analysis.analogous, onColorClick)
