@@ -24,6 +24,7 @@ sealed interface ClosetPage {
     data object List : ClosetPage
     data object Add : ClosetPage
     data object Shop : ClosetPage
+    data object WishList : ClosetPage
     data class Detail(val id: String) : ClosetPage
     /** Outfit ideas, built around one item if [anchorId] is given. */
     data class Outfits(val anchorId: String?) : ClosetPage
@@ -81,6 +82,14 @@ fun ClosetTab(repo: ClosetRepository) {
             onAdd = { open(ClosetPage.Add) },
             onOpen = { open(ClosetPage.Detail(it)) },
             onOutfits = { open(ClosetPage.Outfits(null)) },
+            onShop = { open(ClosetPage.Shop) },
+            onWishList = { open(ClosetPage.WishList) },
+        )
+
+        ClosetPage.WishList -> WishListScreen(
+            repo = repo,
+            onBack = ::back,
+            onOpen = { open(ClosetPage.Detail(it)) },
             onShop = { open(ClosetPage.Shop) },
         )
 

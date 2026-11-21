@@ -40,6 +40,10 @@ data class ClothingItem(
     val typeName: String? = null,
     /** The user's own pattern (like "Floral"), or null. [pattern] is then SOLID (calm) or PRINT (busy). */
     val patternName: String? = null,
+    /** True if it's on the wish list (thinking of buying it), not in the closet yet. */
+    val wished: Boolean = false,
+    /** Other colors on it besides the main [color], like the white in navy-and-white stripes. */
+    val extraColors: List<RgbColor> = emptyList(),
 )
 
 /**
@@ -72,9 +76,13 @@ val ClothingItem.typeLabel: String get() = typeName ?: category.singular
 /** The pattern to show, like "Stripes" or the user's own "Floral". */
 val ClothingItem.patternLabel: String get() = patternName ?: pattern.label
 
-/** Short description for lists, like "Navy, stripes · Shirt". */
+/** The color names on the item, main one first, like "Navy & White". */
+fun ClothingItem.colorNames(): String =
+    (listOf(color) + extraColors).map { ColorNames.nearest(it).name }.distinct().joinToString(" & ")
+
+/** Short description for lists, like "Navy & White, stripes · Shirt". */
 fun ClothingItem.summary(): String = buildString {
-    append(ColorNames.nearest(color).name)
+    append(colorNames())
     if (pattern.busy || patternName != null) append(", ${patternLabel.lowercase()}")
     append(" · $typeLabel")
 }

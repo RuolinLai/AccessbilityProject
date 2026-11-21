@@ -88,7 +88,7 @@ fun RgbColor.toCmyk(): Cmyk {
  */
 data class Lab(val l: Double, val a: Double, val b: Double)
 
-private fun channelToLinear(c: Int): Double {
+internal fun channelToLinear(c: Int): Double {
     val v = c / 255.0
     return if (v <= 0.04045) v / 12.92 else ((v + 0.055) / 1.055).pow(2.4)
 }

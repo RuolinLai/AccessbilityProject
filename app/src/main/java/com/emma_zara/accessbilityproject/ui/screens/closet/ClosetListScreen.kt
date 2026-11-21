@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -70,6 +71,7 @@ fun ClosetListScreen(
     onOpen: (String) -> Unit,
     onOutfits: () -> Unit,
     onShop: () -> Unit,
+    onWishList: () -> Unit,
 ) {
     val items = repo.items
     // null = show all, otherwise a built-in category's name or "own:" + the user's own type
@@ -90,6 +92,14 @@ fun ClosetListScreen(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 ScreenTitle("My closet", if (items.size == 1) "1 item" else "${items.size} items")
+            }
+
+            if (repo.wishList.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    OutlinedButton(onClick = onWishList, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                        AText("Wish list (${repo.wishList.size})")
+                    }
+                }
             }
 
             if (items.isNotEmpty()) {

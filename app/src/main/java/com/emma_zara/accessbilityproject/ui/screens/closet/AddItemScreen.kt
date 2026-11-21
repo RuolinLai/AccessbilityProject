@@ -109,6 +109,8 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
     var error by remember { mutableStateOf<String?>(null) }
     var detectedColors by remember { mutableStateOf<List<RgbColor>>(emptyList()) }
     var color by remember { mutableStateOf<RgbColor?>(null) }
+    // Which of the other found colors are really on the item (like the white in stripes)
+    var extraOn by remember { mutableStateOf<Set<RgbColor>>(emptySet()) }
     var tapPoint by remember { mutableStateOf<Offset?>(null) }
     var category by remember { mutableStateOf<Category?>(null) }
     var foundItem by remember { mutableStateOf(true) }
@@ -140,6 +142,14 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                 photo = result.first
                 detectedColors = scan.colors
                 color = scan.colors.firstOrNull()
+                // Start with the other colors turned on if the item was cut out cleanly (so they aren't
+                // the background), skipping shades with the same name as the main color (often just shadows)
+                val mainName = color?.let { ColorNames.nearest(it).name }
+                extraOn = if (scan.foundItem) {
+                    scan.colors.drop(1).filter { ColorNames.nearest(it).name != mainName }.toSet()
+                } else {
+                    emptySet()
+                }
                 foundItem = scan.foundItem
                 guessedCategory = scan.category
                 category = scan.category
@@ -304,6 +314,42 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                             }
                         }
                     }
+                    val others = detectedColors.filter { it != color }
+                    if (others.isNotEmpty()) {
+                        AText(
+                            "Other colors on it: turn on the ones that are really part of the item (like stripes " +
+                                "or a print), and off for the background or shadows. They're checked when matching.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            others.forEach { c ->
+                                val on = c in extraOn
+                                FilterChip(
+                                    selected = on,
+                                    onClick = { extraOn = if (on) extraOn - c else extraOn + c },
+                                    label = { AText(ColorNames.nearest(c).name) },
+                                    leadingIcon = {
+                                        Box(
+                                            Modifier
+                                                .size(FilterChipDefaults.IconSize)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(c.toComposeColor())
+                                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
+                                        )
+                                    },
+                                    trailingIcon = if (on) {
+                                        { Icon(painterResource(R.drawable.ic_check), null, Modifier.size(FilterChipDefaults.IconSize)) }
+                                    } else {
+                                        null
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
                 color?.let { ColorHeroCard(analyzeColor(it), showDescription = false) }
 
@@ -336,6 +382,7 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                     }
                 }
 
+                val extras = detectedColors.filter { it != color && it in extraOn }
                 val defaultName = "${color?.let { ColorNames.nearest(it).name } ?: ""} ${typeName ?: category?.singular ?: "item"}".trim()
 
                 val c = color
@@ -343,7 +390,7 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                 if (shopping && c != null && cat != null) {
                     val newItem = ClothingItem(
                         NEW_ITEM_ID, "This new ${(typeName ?: cat.singular).lowercase()}", cat, c, "", 0,
-                        pattern, typeName, patternName,
+                        pattern, typeName, patternName, extraColors = extras,
                     )
                     ShoppingResults(repo, newItem, currentPhoto)
                 }
@@ -361,7 +408,10 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                 val ready = category != null && color != null
                 Button(
                     onClick = {
-                        val item = repo.add(name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto, typeName, patternName)
+                        val item = repo.add(
+                            name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto,
+                            typeName, patternName, extraColors = extras,
+                        )
                         onSaved(item.id)
                     },
                     enabled = ready,
@@ -374,6 +424,18 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                             else -> "Save to closet"
                         },
                     )
+                }
+                if (shopping && ready) {
+                    OutlinedButton(
+                        onClick = {
+                            val item = repo.add(
+                                name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto,
+                                typeName, patternName, wished = true, extraColors = extras,
+                            )
+                            onSaved(item.id)
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    ) { AText("Not yet: save to wish list") }
                 }
                 Spacer(Modifier.size(8.dp))
             }
@@ -464,17 +526,7 @@ private fun ShoppingResults(repo: ClosetRepository, newItem: ClothingItem, photo
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        matches.forEach { m ->
-            Column {
-                ItemRow(repo, m.item)
-                AText(
-                    "${m.type.label}: ${m.type.reason}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 76.dp),
-                )
-            }
-        }
+        matches.forEach { m -> MatchRow(repo, newItem, m, reason = "${m.type.label}: ${m.type.reason}") }
     }
 
     if (outfits.isNotEmpty()) {

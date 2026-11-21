@@ -35,11 +35,15 @@ import com.emma_zara.accessbilityproject.R
 import com.emma_zara.accessbilityproject.closet.Category
 import com.emma_zara.accessbilityproject.closet.ClosetRepository
 import com.emma_zara.accessbilityproject.closet.ClothingItem
+import com.emma_zara.accessbilityproject.closet.Match
 import com.emma_zara.accessbilityproject.closet.Outfit
 import com.emma_zara.accessbilityproject.closet.reasons
 import com.emma_zara.accessbilityproject.closet.summary
 import com.emma_zara.accessbilityproject.ui.components.AText
+import com.emma_zara.accessbilityproject.color.ColorNames
+import com.emma_zara.accessbilityproject.color.looksAlike
 import com.emma_zara.accessbilityproject.ui.components.SectionCard
+import com.emma_zara.accessbilityproject.ui.theme.LocalColorVision
 
 /** Id used for a new item that isn't saved in the closet yet (shopping check). */
 const val NEW_ITEM_ID = "new-item"
@@ -114,6 +118,35 @@ fun ItemRow(repo: ClosetRepository, item: ClothingItem, newPhoto: Bitmap? = null
 }
 
 /**
+ * An item that goes with [base], with short notes under it: why it matches ([reason]),
+ * whether the two may blur together, and whether they may look alike with the user's color vision.
+ */
+@Composable
+fun MatchRow(repo: ClosetRepository, base: ClothingItem, match: Match, reason: String? = null, onClick: (() -> Unit)? = null) {
+    val vision = LocalColorVision.current
+    val notes = listOfNotNull(
+        reason,
+        if (match.lowContrast) "About as light or dark as each other, so they may blur together." else null,
+        if (looksAlike(base.color, match.item.color, vision)) {
+            "May look like the same color to you, but it's ${ColorNames.nearest(match.item.color).name}."
+        } else {
+            null
+        },
+    )
+    Column {
+        ItemRow(repo, match.item, onClick = onClick)
+        notes.forEach {
+            AText(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 76.dp),
+            )
+        }
+    }
+}
+
+/**
  * A whole outfit: every piece with its photo, then why it works, in words.
  * [newPhoto] is the photo of the new (not saved) item, if the outfit has one.
  */
@@ -138,7 +171,7 @@ fun OutfitCard(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         AText("Why it works", style = MaterialTheme.typography.titleMedium)
-        outfit.reasons().forEach {
+        outfit.reasons(LocalColorVision.current).forEach {
             AText(
                 "• $it",
                 style = MaterialTheme.typography.bodyMedium,

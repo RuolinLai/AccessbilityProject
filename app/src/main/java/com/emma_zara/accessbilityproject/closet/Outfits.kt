@@ -7,6 +7,9 @@ import com.emma_zara.accessbilityproject.closet.Category.PANTS
 import com.emma_zara.accessbilityproject.closet.Category.SHIRTS
 import com.emma_zara.accessbilityproject.closet.Category.SHOES
 import com.emma_zara.accessbilityproject.closet.Category.SKIRTS
+import com.emma_zara.accessbilityproject.color.ColorNames
+import com.emma_zara.accessbilityproject.color.ColorVision
+import com.emma_zara.accessbilityproject.color.looksAlike
 
 /** A whole outfit: a top and a bottom (or a dress), plus shoes, a bag and jewellery when they fit. */
 data class Outfit(val items: List<ClothingItem>, val score: Double)
@@ -29,13 +32,22 @@ private fun pairScore(type: MatchType): Double = when (type) {
     MatchType.TRIADIC -> 1.1
 }
 
-/** Average of every pair in the outfit, plus a little extra for each piece so fuller outfits win. */
+/** Pieces that sit next to each other on the body, where low contrast matters. Jewellery is too small. */
+private fun bigPieces(a: ClothingItem, b: ClothingItem) = a.category != JEWELLERY && b.category != JEWELLERY
+
+/**
+ * Average of every pair in the outfit, plus a little extra for each piece so fuller outfits win.
+ * Pairs that are equally light or dark score a bit lower, since they can blur together.
+ */
 private fun score(items: List<ClothingItem>): Double {
     if (items.size < 2) return 0.0
     var total = 0.0
     var pairs = 0
     for (i in items.indices) for (j in i + 1 until items.size) {
-        total += matchType(items[i].color, items[j].color)?.let(::pairScore) ?: 0.0
+        val a = items[i]
+        val b = items[j]
+        val pair = matchItems(a, b)?.let(::pairScore) ?: 0.0
+        total += if (bigPieces(a, b) && lowContrast(a.color, b.color)) pair * 0.85 else pair
         pairs++
     }
     return total / pairs + 0.12 * items.size
@@ -96,13 +108,16 @@ fun suggestOutfits(
     return chosen
 }
 
-/** Plain-language reasons why the outfit works, for reading (or listening to) instead of judging colors by eye. */
-fun Outfit.reasons(): List<String> {
+/**
+ * Plain-language reasons why the outfit works, for reading (or listening to) instead of judging colors by eye.
+ * Also gives tips: pieces that may blur together, and (with [vision]) pieces that may look alike to you.
+ */
+fun Outfit.reasons(vision: ColorVision = ColorVision.TYPICAL): List<String> {
     val lines = mutableListOf<String>()
     // The most interesting color pair of each kind (skip neutral pairs if there's anything else)
     val pairs = buildList {
         for (i in items.indices) for (j in i + 1 until items.size) {
-            matchType(items[i].color, items[j].color)?.let { add(Triple(it, items[i], items[j])) }
+            matchItems(items[i], items[j])?.let { add(Triple(it, items[i], items[j])) }
         }
     }
     val colorful = pairs.filter { it.first != MatchType.NEUTRAL }.distinctBy { it.first }.sortedBy { it.first.ordinal }
@@ -114,6 +129,19 @@ fun Outfit.reasons(): List<String> {
     }
     items.firstOrNull { it.pattern.busy && it.category != JEWELLERY }?.let {
         lines += "Only one patterned piece (${it.patternLabel.lowercase()}), so nothing clashes."
+    }
+    items.firstOrNull { it.extraColors.isNotEmpty() }?.let {
+        lines += "The other colors in ${it.name} (${it.extraColors.joinToString { c -> ColorNames.nearest(c).name }}) " +
+            "go with the rest too."
+    }
+    pairs.firstOrNull { (_, a, b) -> bigPieces(a, b) && lowContrast(a.color, b.color) }?.let { (_, a, b) ->
+        lines += "Tip: ${a.name} and ${b.name} are about as light or dark as each other, so they may blur together. " +
+            "A lighter or darker one would stand out more."
+    }
+    val allPairs = items.indices.flatMap { i -> (i + 1 until items.size).map { j -> items[i] to items[j] } }
+    allPairs.firstOrNull { (a, b) -> looksAlike(a.color, b.color, vision) }?.let { (a, b) ->
+        lines += "Heads up: ${a.name} (${ColorNames.nearest(a.color).name}) and ${b.name} " +
+            "(${ColorNames.nearest(b.color).name}) may look alike to you, but they are different colors."
     }
     return lines
 }

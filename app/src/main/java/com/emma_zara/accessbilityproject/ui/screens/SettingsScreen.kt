@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.emma_zara.accessbilityproject.R
+import com.emma_zara.accessbilityproject.color.ColorVision
 import com.emma_zara.accessbilityproject.settings.AppSettings
 import com.emma_zara.accessbilityproject.settings.AppTheme
 import com.emma_zara.accessbilityproject.settings.DEFAULT_SPLASH_DIFFERENCE
@@ -178,6 +179,43 @@ fun SettingsScreen(settings: AppSettings, onChange: (AppSettings) -> Unit) {
                         Spacer(Modifier.width(12.dp))
                         // Each option is shown in its own casing so you can see what it does
                         Text(casing.label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        }
+
+        SectionCard(title = "Color vision") {
+            AText(
+                "If you're color blind, choose your kind. The app then tells you when two colors " +
+                    "may look alike to you, like a red and a green shirt.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(Modifier.selectableGroup()) {
+                ColorVision.entries.forEach { vision ->
+                    val selected = settings.colorVision == vision
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { onChange(settings.copy(colorVision = vision)) },
+                            )
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = selected, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            AText(vision.label, style = MaterialTheme.typography.bodyLarge)
+                            AText(
+                                vision.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

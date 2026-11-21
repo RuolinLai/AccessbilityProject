@@ -1,6 +1,7 @@
 package com.emma_zara.accessbilityproject.settings
 
 import android.content.Context
+import com.emma_zara.accessbilityproject.color.ColorVision
 
 enum class AppTheme(val label: String) {
     LIGHT("Light"),
@@ -29,6 +30,8 @@ data class AppSettings(
     val animations: Boolean = true,   // moving effects; can be turned off if motion bothers you
     /** How different (Lab color distance) a new color must be to play the paint splash. */
     val splashDifference: Int = DEFAULT_SPLASH_DIFFERENCE,
+    /** The user's kind of color vision, so the app can warn about colors that may look alike to them. */
+    val colorVision: ColorVision = ColorVision.TYPICAL,
 )
 
 const val DEFAULT_SPLASH_DIFFERENCE = 30
@@ -47,6 +50,7 @@ class SettingsStore(context: Context) {
         animations = prefs.getBoolean("animations", true),
         splashDifference = prefs.getInt("splashDifference", DEFAULT_SPLASH_DIFFERENCE)
             .coerceIn(MIN_SPLASH_DIFFERENCE, MAX_SPLASH_DIFFERENCE),
+        colorVision = enumOrDefault(prefs.getString("colorVision", null), ColorVision.TYPICAL),
     )
 
     fun save(settings: AppSettings) {
@@ -57,6 +61,7 @@ class SettingsStore(context: Context) {
             .putString("casing", settings.casing.name)
             .putBoolean("animations", settings.animations)
             .putInt("splashDifference", settings.splashDifference)
+            .putString("colorVision", settings.colorVision.name)
             .apply()
     }
 

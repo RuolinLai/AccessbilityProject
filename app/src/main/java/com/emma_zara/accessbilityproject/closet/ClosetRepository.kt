@@ -3,6 +3,7 @@ package com.emma_zara.accessbilityproject.closet
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,9 +24,14 @@ class ClosetRepository(context: Context) {
     private val dataFile = File(context.filesDir, "closet.json")
     val photoDir = File(context.filesDir, "closet").apply { mkdirs() }
 
-    /** The items. Compose screens re-draw automatically when this changes. */
-    var items: List<ClothingItem> by mutableStateOf(load())
-        private set
+    /** Everything saved: the closet and the wish list. Compose screens re-draw automatically when this changes. */
+    private var allItems: List<ClothingItem> by mutableStateOf(load())
+
+    /** The items in the closet (things you own). Matches and outfits only use these. */
+    val items: List<ClothingItem> by derivedStateOf { allItems.filter { !it.wished } }
+
+    /** Things you're thinking of buying. */
+    val wishList: List<ClothingItem> by derivedStateOf { allItems.filter { it.wished } }
 
     private val prefs = context.getSharedPreferences("closet", Context.MODE_PRIVATE)
 
@@ -86,8 +92,8 @@ class ClosetRepository(context: Context) {
     fun deleteCustomType(type: CustomType) {
         customTypes = customTypes - type
         saveCustoms()
-        if (items.any { it.typeName == type.name }) {
-            items = items.map { if (it.typeName == type.name) it.copy(typeName = null) else it }
+        if (allItems.any { it.typeName == type.name }) {
+            allItems = allItems.map { if (it.typeName == type.name) it.copy(typeName = null) else it }
             save()
         }
     }
@@ -96,8 +102,8 @@ class ClosetRepository(context: Context) {
     fun deleteCustomPattern(pattern: CustomPattern) {
         customPatterns = customPatterns - pattern
         saveCustoms()
-        if (items.any { it.patternName == pattern.name }) {
-            items = items.map { if (it.patternName == pattern.name) it.copy(patternName = null) else it }
+        if (allItems.any { it.patternName == pattern.name }) {
+            allItems = allItems.map { if (it.patternName == pattern.name) it.copy(patternName = null) else it }
             save()
         }
     }
@@ -136,9 +142,10 @@ class ClosetRepository(context: Context) {
 
     fun photoFor(item: ClothingItem) = File(photoDir, item.photoFile)
 
-    fun find(id: String): ClothingItem? = items.firstOrNull { it.id == id }
+    /** Finds an item in the closet or on the wish list. */
+    fun find(id: String): ClothingItem? = allItems.firstOrNull { it.id == id }
 
-    /** Saves the photo and adds a new item. */
+    /** Saves the photo and adds a new item (to the wish list if [wished] is true). */
     fun add(
         name: String,
         category: Category,
@@ -147,30 +154,35 @@ class ClosetRepository(context: Context) {
         photo: Bitmap,
         typeName: String? = null,
         patternName: String? = null,
+        wished: Boolean = false,
+        extraColors: List<RgbColor> = emptyList(),
     ): ClothingItem {
         val id = UUID.randomUUID().toString()
         val fileName = "$id.jpg"
         FileOutputStream(File(photoDir, fileName)).use { photo.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-        val item = ClothingItem(id, name, category, color, fileName, System.currentTimeMillis(), pattern, typeName, patternName)
-        items = items + item
+        val item = ClothingItem(id, name, category, color, fileName, System.currentTimeMillis(), pattern, typeName, patternName, wished, extraColors)
+        allItems = allItems + item
         save()
         return item
     }
 
     fun update(item: ClothingItem) {
-        items = items.map { if (it.id == item.id) item else it }
+        allItems = allItems.map { if (it.id == item.id) item else it }
         save()
     }
 
+    /** You bought something from the wish list: it moves into the closet as its newest item. */
+    fun markBought(item: ClothingItem) = update(item.copy(wished = false, addedAt = System.currentTimeMillis()))
+
     fun delete(item: ClothingItem) {
         photoFor(item).delete()
-        items = items.filter { it.id != item.id }
+        allItems = allItems.filter { it.id != item.id }
         save()
     }
 
     private fun save() {
         val array = JSONArray()
-        for (item in items) {
+        for (item in allItems) {
             array.put(
                 JSONObject()
                     .put("id", item.id)
@@ -181,11 +193,15 @@ class ClosetRepository(context: Context) {
                     .put("addedAt", item.addedAt)
                     .put("pattern", item.pattern.name)
                     .put("typeName", item.typeName ?: JSONObject.NULL)
-                    .put("patternName", item.patternName ?: JSONObject.NULL),
+                    .put("patternName", item.patternName ?: JSONObject.NULL)
+                    .put("wished", item.wished)
+                    .put("extraColors", JSONArray(item.extraColors.map { it.hex })),
             )
         }
         dataFile.writeText(array.toString(2))
     }
+
+    private fun parseHex(hex: String) = RgbColor.fromArgb(android.graphics.Color.parseColor(hex))
 
     private fun load(): List<ClothingItem> {
         if (!dataFile.exists()) return emptyList()
@@ -198,13 +214,18 @@ class ClosetRepository(context: Context) {
                     id = o.getString("id"),
                     name = o.getString("name"),
                     category = category,
-                    color = RgbColor.fromArgb(android.graphics.Color.parseColor(o.getString("color"))),
+                    color = parseHex(o.getString("color")),
                     photoFile = o.getString("photo"),
                     addedAt = o.getLong("addedAt"),
                     // Items saved before patterns existed count as plain
                     pattern = Pattern.entries.firstOrNull { it.name == o.optString("pattern") } ?: Pattern.SOLID,
                     typeName = o.optString("typeName").takeIf { !o.isNull("typeName") && it.isNotEmpty() },
                     patternName = o.optString("patternName").takeIf { !o.isNull("patternName") && it.isNotEmpty() },
+                    // Items saved before the wish list existed are in the closet
+                    wished = o.optBoolean("wished", false),
+                    extraColors = o.optJSONArray("extraColors")?.let { a ->
+                        (0 until a.length()).map { parseHex(a.getString(it)) }
+                    }.orEmpty(),
                 )
             }
         } catch (e: Exception) {

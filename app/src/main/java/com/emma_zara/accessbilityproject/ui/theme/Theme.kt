@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import com.emma_zara.accessbilityproject.color.ColorVision
 import com.emma_zara.accessbilityproject.settings.AppSettings
 import com.emma_zara.accessbilityproject.settings.AppTheme
 import com.emma_zara.accessbilityproject.settings.TextCasing
@@ -67,6 +68,9 @@ val LocalMotion = staticCompositionLocalOf { true }
 /** How different a new color must be to play the paint splash (from Settings). */
 val LocalSplashDifference = staticCompositionLocalOf { 30 }
 
+/** The user's kind of color vision (from Settings). */
+val LocalColorVision = staticCompositionLocalOf { ColorVision.TYPICAL }
+
 /** True unless the phone's accessibility setting "Remove animations" is on. */
 @Composable
 fun systemAnimationsOn(): Boolean {
@@ -90,6 +94,7 @@ fun AccessbilityProjectTheme(
         LocalHighContrast provides (settings.theme == AppTheme.HIGH_CONTRAST),
         LocalMotion provides (settings.animations && systemAnimationsOn()),
         LocalSplashDifference provides settings.splashDifference,
+        LocalColorVision provides settings.colorVision,
     ) {
         MaterialTheme(
             colorScheme = colors,

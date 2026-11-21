@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -30,15 +33,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.emma_zara.accessbilityproject.R
 import com.emma_zara.accessbilityproject.color.ColorAnalysis
+import com.emma_zara.accessbilityproject.color.ColorVision
 import com.emma_zara.accessbilityproject.color.ColorNames
 import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.color.relativeLuminance
+import com.emma_zara.accessbilityproject.ui.theme.LocalColorVision
 import com.emma_zara.accessbilityproject.ui.theme.LocalHighContrast
 import com.emma_zara.accessbilityproject.ui.theme.LocalMotion
 import kotlin.math.roundToInt
@@ -74,6 +81,9 @@ fun Swatch(color: RgbColor, modifier: Modifier = Modifier, corner: Int = 16) {
 fun ColorHeroCard(analysis: ColorAnalysis, modifier: Modifier = Modifier, showDescription: Boolean = true) {
     val c = analysis.color
     val highContrast = LocalHighContrast.current
+    val vision = LocalColorVision.current
+    val seenAs = colorVisionHint(analysis, vision)
+    val speaker = rememberSpeaker()
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -110,9 +120,32 @@ fun ColorHeroCard(analysis: ColorAnalysis, modifier: Modifier = Modifier, showDe
                 if (showDescription) {
                     AText(analysis.description, style = MaterialTheme.typography.bodyLarge)
                 }
+                seenAs?.let {
+                    AText(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                OutlinedButton(
+                    onClick = { speaker.speak(listOfNotNull(analysis.description, seenAs).joinToString(" ")) },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Icon(painterResource(R.drawable.ic_volume), contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    AText("Read aloud")
+                }
             }
         }
     }
+}
+
+/**
+ * With a color-vision setting, says what the color may look closer to for the user,
+ * like "With red-weak vision, this may look closer to Olive." Null if nothing to say.
+ */
+fun colorVisionHint(analysis: ColorAnalysis, vision: ColorVision): String? {
+    if (vision == ColorVision.TYPICAL) return null
+    val seen = ColorNames.nearest(vision.simulate(analysis.color)).name
+    if (seen == analysis.name) return null
+    val kind = vision.label.substringBefore(" (").lowercase()
+    return "With $kind vision, ${analysis.name} may look closer to $seen."
 }
 
 /** Complementary, analogous and triadic colors as tappable tiles. */

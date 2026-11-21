@@ -46,8 +46,29 @@ fun matchType(a: RgbColor, b: RgbColor): MatchType? {
     }
 }
 
-/** An item from the closet that matches another one, and why. */
-data class Match(val item: ClothingItem, val type: MatchType)
+/**
+ * True if two colors are about equally light or dark, so next to each other they can blur together
+ * (hard to see where one piece ends and the other begins, especially with low vision).
+ */
+fun lowContrast(a: RgbColor, b: RgbColor): Boolean = abs(a.toLab().l - b.toLab().l) < LOW_CONTRAST_LIGHTNESS
+
+/** Lightness difference (Lab L, 0..100) below which two colors count as low contrast. */
+const val LOW_CONTRAST_LIGHTNESS = 12.0
+
+/**
+ * How two items match by color, or null if they don't.
+ * The main colors must follow a color rule, and the other colors on each item (like the white in
+ * navy-and-white stripes) must also go with the other item's main color.
+ */
+fun matchItems(a: ClothingItem, b: ClothingItem): MatchType? {
+    val main = matchType(a.color, b.color) ?: return null
+    if (a.extraColors.any { matchType(it, b.color) == null }) return null
+    if (b.extraColors.any { matchType(it, a.color) == null }) return null
+    return main
+}
+
+/** An item from the closet that matches another one, and why. [lowContrast]: about as light/dark as the other. */
+data class Match(val item: ClothingItem, val type: MatchType, val lowContrast: Boolean = false)
 
 /**
  * Two patterned pieces (like stripes with a print) can clash, so wear one pattern at a time.
@@ -58,7 +79,7 @@ fun patternsClash(a: ClothingItem, b: ClothingItem): Boolean =
 
 /** True if [a] and [b] can be worn together: their colors follow a rule and their patterns don't clash. */
 fun goTogether(a: ClothingItem, b: ClothingItem): Boolean =
-    matchType(a.color, b.color) != null && !patternsClash(a, b)
+    matchItems(a, b) != null && !patternsClash(a, b)
 
 /**
  * Finds items in OTHER categories that go with [item], best matches first.
@@ -71,7 +92,7 @@ fun findMatches(
 ): List<Match> =
     closet
         .filter { it.id != item.id && it.category != item.category && it.category in include && !patternsClash(item, it) }
-        .mapNotNull { other -> matchType(item.color, other.color)?.let { Match(other, it) } }
+        .mapNotNull { other -> matchItems(item, other)?.let { Match(other, it, lowContrast(item.color, other.color)) } }
         .sortedWith(compareBy({ it.type.ordinal }, { it.item.category.ordinal }))
 
 enum class SortOrder(val label: String) { NEWEST("Newest"), COLOR("Color"), CATEGORY("Category") }
