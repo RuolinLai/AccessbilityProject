@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -83,12 +84,15 @@ import kotlinx.coroutines.launch
 
 /**
  * Color identifier: shows the camera, and describes the color under the circle in the middle.
+ * The camera only runs while [cameraOn] is true, so it isn't on all the time.
  */
 @Composable
 fun IdentifyScreen(
     color: RgbColor,
     onColorChange: (RgbColor) -> Unit,
     onOpenInWheel: () -> Unit,
+    cameraOn: Boolean,
+    onCameraOnChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     var hasPermission by remember {
@@ -96,12 +100,21 @@ fun IdentifyScreen(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
         )
     }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        hasPermission = it
-    }
     var frozen by remember { mutableStateOf(false) }
     var cameraError by remember { mutableStateOf<String?>(null) }
+    var permissionDenied by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        hasPermission = it
+        permissionDenied = !it
+        if (it) onCameraOnChange(true)
+    }
     val analysis = analyzeColor(color)
+
+    fun turnOn() {
+        frozen = false
+        cameraError = null
+        if (hasPermission) onCameraOnChange(true) else permissionLauncher.launch(Manifest.permission.CAMERA)
+    }
 
     Column(
         Modifier
@@ -113,30 +126,49 @@ fun IdentifyScreen(
         ScreenTitle("Identify a color", "Point the circle at something.")
 
         when {
-            !hasPermission -> SectionCard(title = "Camera needed") {
+            !cameraOn || !hasPermission -> SectionCard(title = "Camera is off") {
                 AText(
-                    "The app looks through your camera to tell you what color something is. " +
+                    "Turn on the camera and point the circle at something to hear and read its color. " +
                         "Nothing is saved or sent anywhere.",
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
+                if (permissionDenied) {
+                    AText(
+                        "The camera permission is needed. If no question pops up, allow it in your phone's " +
+                            "Settings > Apps.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Button(onClick = ::turnOn, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                     Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    AText("Allow camera")
+                    AText("Turn on camera")
                 }
             }
 
             cameraError != null -> SectionCard(title = "Camera problem") {
                 AText(cameraError ?: "", style = MaterialTheme.typography.bodyLarge)
+                OutlinedButton(onClick = { onCameraOnChange(false) }) { AText("Turn off camera") }
             }
 
-            else -> CameraCard(
-                frozen = frozen,
-                color = color,
-                onToggleFreeze = { frozen = !frozen },
-                onColor = onColorChange,
-                onError = { cameraError = it },
-            )
+            else -> {
+                CameraCard(
+                    frozen = frozen,
+                    color = color,
+                    onToggleFreeze = { frozen = !frozen },
+                    onColor = onColorChange,
+                    onError = { cameraError = it },
+                )
+                OutlinedButton(
+                    onClick = { onCameraOnChange(false) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                ) {
+                    Icon(painterResource(R.drawable.ic_camera_off), contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    AText("Turn off camera")
+                }
+            }
         }
 
         // When frozen, screen readers announce the result

@@ -93,6 +93,8 @@ fun App(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
     var tab by rememberSaveable { mutableStateOf(Tab.IDENTIFY) }
     // The color currently being looked at, shared between the Identify and Color wheel tabs
     var color by remember { mutableStateOf(RgbColor(0x1E, 0x3A, 0x8A)) }
+    // The camera starts off and only runs after the user turns it on (kept when switching tabs)
+    var cameraOn by rememberSaveable { mutableStateOf(false) }
     // The digital closet, saved on the phone
     val context = LocalContext.current
     val closet = remember { ClosetRepository(context.applicationContext) }
@@ -149,6 +151,8 @@ fun App(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
                     color = color,
                     onColorChange = { color = it },
                     onOpenInWheel = { tab = Tab.WHEEL },
+                    cameraOn = cameraOn,
+                    onCameraOnChange = { cameraOn = it },
                 )
                 Tab.CLOSET -> ClosetTab(closet)
                 Tab.WHEEL -> WheelScreen(color = color, onColorChange = { color = it })
