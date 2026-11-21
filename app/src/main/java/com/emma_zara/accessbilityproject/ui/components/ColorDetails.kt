@@ -1,5 +1,9 @@
 package com.emma_zara.accessbilityproject.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +23,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +39,8 @@ import com.emma_zara.accessbilityproject.color.ColorAnalysis
 import com.emma_zara.accessbilityproject.color.ColorNames
 import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.color.relativeLuminance
+import com.emma_zara.accessbilityproject.ui.theme.LocalHighContrast
+import com.emma_zara.accessbilityproject.ui.theme.LocalMotion
 import kotlin.math.roundToInt
 
 fun RgbColor.toComposeColor() = Color(toArgb())
@@ -43,50 +51,66 @@ fun RgbColor.readableTextColor() = if (relativeLuminance() > 0.35) Color.Black e
 /** A rounded square filled with a color, with a border so white/black colors are still visible. */
 @Composable
 fun Swatch(color: RgbColor, modifier: Modifier = Modifier, corner: Int = 16) {
+    // Blend smoothly to a new color instead of jumping
+    val shown by animateColorAsState(
+        color.toComposeColor(),
+        animationSpec = if (LocalMotion.current) tween(350) else snap(),
+        label = "swatch",
+    )
     Box(
         modifier
             .clip(RoundedCornerShape(corner.dp))
-            .background(color.toComposeColor())
+            .background(shown)
             .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(corner.dp)),
     )
 }
 
 /**
- * The main result: a big swatch, the color name, its hex code, and the three key facts as pills.
+ * The main result, styled like a paint sample card: a block of the color with paint drips,
+ * then the color name, its hex code, and the three key facts as pills.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ColorHeroCard(analysis: ColorAnalysis, modifier: Modifier = Modifier, showDescription: Boolean = true) {
     val c = analysis.color
-    SectionCard(modifier) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.semantics(mergeDescendants = true) {
-                contentDescription = "${analysis.name}, ${analysis.temperature.label}, " +
-                    "${analysis.lightness.label}, ${analysis.saturation.label}. Hex ${c.hex}"
-            },
-        ) {
-            Swatch(c, Modifier.size(84.dp), corner = 20)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                AText(analysis.name, style = MaterialTheme.typography.headlineSmall)
-                AText(
-                    c.hex,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+    val highContrast = LocalHighContrast.current
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = if (highContrast) BorderStroke(2.dp, MaterialTheme.colorScheme.outline) else null,
+    ) {
+        Column {
+            PaintSplash(c, Modifier.fillMaxWidth())
+            Column(
+                Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(
+                    Modifier.semantics(mergeDescendants = true) {
+                        contentDescription = "${analysis.name}, ${analysis.temperature.label}, " +
+                            "${analysis.lightness.label}, ${analysis.saturation.label}. Hex ${c.hex}"
+                    },
+                ) {
+                    AText(analysis.name, style = MaterialTheme.typography.headlineSmall)
+                    AText(
+                        c.hex,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Pill(analysis.temperature.label)
+                    Pill(analysis.lightness.label)
+                    Pill(analysis.saturation.label)
+                }
+                if (showDescription) {
+                    AText(analysis.description, style = MaterialTheme.typography.bodyLarge)
+                }
             }
-        }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Pill(analysis.temperature.label)
-            Pill(analysis.lightness.label)
-            Pill(analysis.saturation.label)
-        }
-        if (showDescription) {
-            AText(analysis.description, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
@@ -133,16 +157,16 @@ private fun HarmonyGroup(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            colors.forEach { ColorTile(it, onClick) }
+            colors.forEachIndexed { i, color -> ColorTile(color, onClick, Modifier.popIn(i)) }
         }
     }
 }
 
 @Composable
-private fun ColorTile(color: RgbColor, onClick: ((RgbColor) -> Unit)?) {
+private fun ColorTile(color: RgbColor, onClick: ((RgbColor) -> Unit)?, modifier: Modifier = Modifier) {
     val name = ColorNames.nearest(color).name
     Column(
-        Modifier
+        modifier
             .widthIn(min = 96.dp, max = 140.dp)
             .clip(RoundedCornerShape(16.dp))
             .then(

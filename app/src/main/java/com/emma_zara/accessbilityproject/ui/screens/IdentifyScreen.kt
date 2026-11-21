@@ -11,6 +11,11 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,7 +51,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -66,7 +76,10 @@ import com.emma_zara.accessbilityproject.ui.components.CompositionCard
 import com.emma_zara.accessbilityproject.ui.components.MatchingColorsCard
 import com.emma_zara.accessbilityproject.ui.components.ScreenTitle
 import com.emma_zara.accessbilityproject.ui.components.SectionCard
+import com.emma_zara.accessbilityproject.ui.components.Spectrum
 import com.emma_zara.accessbilityproject.ui.components.toComposeColor
+import com.emma_zara.accessbilityproject.ui.theme.LocalMotion
+import kotlinx.coroutines.launch
 
 /**
  * Color identifier: shows the camera, and describes the color under the circle in the middle.
@@ -154,6 +167,19 @@ private fun CameraCard(
     onColor: (RgbColor) -> Unit,
     onError: (String) -> Unit,
 ) {
+    val motion = LocalMotion.current
+    val flash = remember { Animatable(0f) }   // white "shutter" flash when freezing
+    val pulse = remember { Animatable(1f) }   // the circle bounces when it locks on
+    LaunchedEffect(frozen) {
+        if (frozen && motion) {
+            launch {
+                flash.snapTo(0.55f)
+                flash.animateTo(0f, tween(400))
+            }
+            pulse.snapTo(1.35f)
+            pulse.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 400f))
+        }
+    }
     Box(
         Modifier
             .fillMaxWidth()
@@ -170,7 +196,24 @@ private fun CameraCard(
                 .fillMaxSize()
                 .semantics { contentDescription = "Camera view" },
         )
-        Crosshair(color, Modifier.align(Alignment.Center))
+        Crosshair(
+            color,
+            spinning = !frozen,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .graphicsLayer {
+                    scaleX = pulse.value
+                    scaleY = pulse.value
+                },
+        )
+        if (flash.value > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = flash.value }
+                    .background(Color.White),
+            )
+        }
 
         // "Live" / "Frozen" label in the top-left corner
         Row(
@@ -213,12 +256,27 @@ private fun CameraCard(
     }
 }
 
-/** A ring in the middle of the camera, filled with the color it sees (black + white edge shows on anything). */
+/**
+ * A ring in the middle of the camera, filled with the color it sees (black + white edge shows on anything).
+ * Around it, a rainbow ring slowly turns while the camera is live, and fills with the color when frozen.
+ */
 @Composable
-private fun Crosshair(color: RgbColor, modifier: Modifier = Modifier) {
-    val fill = color.toComposeColor()
-    Canvas(modifier.size(72.dp)) {
+private fun Crosshair(color: RgbColor, spinning: Boolean, modifier: Modifier = Modifier) {
+    val motion = LocalMotion.current
+    val fill by animateColorAsState(color.toComposeColor(), label = "crosshair")
+    val angle = remember { Animatable(0f) }
+    LaunchedEffect(spinning, motion) {
+        while (spinning && motion) {
+            angle.animateTo(angle.value + 360f, tween(5000, easing = LinearEasing))
+        }
+    }
+    val ring = if (spinning) Brush.sweepGradient(Spectrum) else SolidColor(fill)
+    Canvas(modifier.size(96.dp)) {
         val r = 26.dp.toPx()
+        rotate(angle.value) {
+            drawCircle(ring, radius = r + 11.dp.toPx(), style = Stroke(6.dp.toPx()))
+        }
+        drawCircle(Color.Black, radius = r + 11.dp.toPx(), style = Stroke(1.dp.toPx()))
         drawCircle(Color.Black, radius = r + 3.dp.toPx(), style = Stroke(3.dp.toPx()))
         drawCircle(Color.White, radius = r, style = Stroke(4.dp.toPx()))
         // Small swatch dot in the center showing the detected color
@@ -248,6 +306,7 @@ private fun CameraColorPreview(
         val mainExecutor = ContextCompat.getMainExecutor(context)
         val providerFuture = ProcessCameraProvider.getInstance(context)
         var disposed = false
+        var boundCases: Array<androidx.camera.core.UseCase> = emptyArray()
 
         providerFuture.addListener({
             if (disposed) return@addListener
@@ -279,6 +338,7 @@ private fun CameraColorPreview(
                 }
                 provider.unbindAll()
                 provider.bindToLifecycle(lifecycleOwner, selector, preview, analysis)
+                boundCases = arrayOf(preview, analysis)
             } catch (e: Exception) {
                 Log.e("IdentifyScreen", "Camera failed", e)
                 currentOnError(e.message ?: "No camera found")
@@ -287,7 +347,8 @@ private fun CameraColorPreview(
 
         onDispose {
             disposed = true
-            if (providerFuture.isDone) providerFuture.get().unbindAll()
+            // Only release this screen's camera parts (another copy may be fading in during a tab change)
+            if (providerFuture.isDone && boundCases.isNotEmpty()) providerFuture.get().unbind(*boundCases)
         }
     }
 

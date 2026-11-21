@@ -15,6 +15,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AccessbilityProject">
+        <!-- Ask Google Play to download the "find the item in the photo" model when the app is installed -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="subject_segment" />
         <!-- Lets the camera app save a photo for us (used when adding clothes) -->
         <provider
             android:name="androidx.core.content.FileProvider"

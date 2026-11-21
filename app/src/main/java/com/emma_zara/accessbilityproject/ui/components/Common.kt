@@ -25,6 +25,7 @@ fun ScreenTitle(title: String, subtitle: String? = null) {
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.semantics { heading() },
         )
+        SpectrumRibbon(Modifier.padding(top = 6.dp, bottom = 8.dp))
         if (subtitle != null) {
             AText(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

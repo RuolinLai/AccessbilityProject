@@ -49,10 +49,28 @@ fun matchType(a: RgbColor, b: RgbColor): MatchType? {
 /** An item from the closet that matches another one, and why. */
 data class Match(val item: ClothingItem, val type: MatchType)
 
-/** Finds items in OTHER categories that go with [item], best matches first. */
-fun findMatches(item: ClothingItem, closet: List<ClothingItem>): List<Match> =
+/**
+ * Two patterned pieces (like stripes with a print) can clash, so wear one pattern at a time.
+ * Jewellery is small, so it doesn't count.
+ */
+fun patternsClash(a: ClothingItem, b: ClothingItem): Boolean =
+    a.pattern.busy && b.pattern.busy && a.category != Category.JEWELLERY && b.category != Category.JEWELLERY
+
+/** True if [a] and [b] can be worn together: their colors follow a rule and their patterns don't clash. */
+fun goTogether(a: ClothingItem, b: ClothingItem): Boolean =
+    matchType(a.color, b.color) != null && !patternsClash(a, b)
+
+/**
+ * Finds items in OTHER categories that go with [item], best matches first.
+ * Only items in the [include] categories are suggested.
+ */
+fun findMatches(
+    item: ClothingItem,
+    closet: List<ClothingItem>,
+    include: Set<Category> = Category.entries.toSet(),
+): List<Match> =
     closet
-        .filter { it.id != item.id && it.category != item.category }
+        .filter { it.id != item.id && it.category != item.category && it.category in include && !patternsClash(item, it) }
         .mapNotNull { other -> matchType(item.color, other.color)?.let { Match(other, it) } }
         .sortedWith(compareBy({ it.type.ordinal }, { it.item.category.ordinal }))
 

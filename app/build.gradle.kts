@@ -51,6 +51,9 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    // ML Kit (on the phone, no internet needed): cut the clothes out of the background, and guess the category
+    implementation(libs.mlkit.subject.segmentation)
+    implementation(libs.mlkit.image.labeling)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

@@ -45,10 +45,14 @@ import androidx.compose.ui.unit.sp
 import com.emma_zara.accessbilityproject.R
 import com.emma_zara.accessbilityproject.settings.AppSettings
 import com.emma_zara.accessbilityproject.settings.AppTheme
+import com.emma_zara.accessbilityproject.settings.DEFAULT_SPLASH_DIFFERENCE
+import com.emma_zara.accessbilityproject.settings.MAX_SPLASH_DIFFERENCE
+import com.emma_zara.accessbilityproject.settings.MIN_SPLASH_DIFFERENCE
 import com.emma_zara.accessbilityproject.settings.TextCasing
 import com.emma_zara.accessbilityproject.ui.components.AText
 import com.emma_zara.accessbilityproject.ui.components.ScreenTitle
 import com.emma_zara.accessbilityproject.ui.components.SectionCard
+import com.emma_zara.accessbilityproject.ui.theme.systemAnimationsOn
 import kotlin.math.roundToInt
 
 private const val MIN_SCALE = 0.8f
@@ -174,6 +178,73 @@ fun SettingsScreen(settings: AppSettings, onChange: (AppSettings) -> Unit) {
                         Spacer(Modifier.width(12.dp))
                         // Each option is shown in its own casing so you can see what it does
                         Text(casing.label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        }
+
+        SectionCard(title = "Motion") {
+            val systemOn = systemAnimationsOn()
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .toggleable(
+                        value = settings.animations,
+                        role = Role.Switch,
+                        onValueChange = { onChange(settings.copy(animations = it)) },
+                    )
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    AText("Animations", style = MaterialTheme.typography.titleMedium)
+                    AText(
+                        "Paint splashes, the spinning camera ring and sliding pages. " +
+                            "Turn off if moving things bother you.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = settings.animations, onCheckedChange = null)
+            }
+            if (!systemOn) {
+                AText(
+                    "Animations are off because \"Remove animations\" is on in your phone's settings.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (settings.animations && systemOn) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                val value = settings.splashDifference
+                AText("When to play the paint splash", style = MaterialTheme.typography.titleMedium)
+                AText(
+                    "How different a new color must be before the paint splash plays. " +
+                        "Lower numbers play it more often.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val meaning = when {
+                    value <= 15 -> "even small changes, like red to dark red"
+                    value <= 40 -> "clear changes, like red to orange"
+                    else -> "only big changes, like red to blue"
+                }
+                AText("$value: plays for $meaning", style = MaterialTheme.typography.bodyLarge)
+                Slider(
+                    value = value.toFloat(),
+                    onValueChange = { onChange(settings.copy(splashDifference = (it / 5f).roundToInt() * 5)) },
+                    valueRange = MIN_SPLASH_DIFFERENCE.toFloat()..MAX_SPLASH_DIFFERENCE.toFloat(),
+                    steps = (MAX_SPLASH_DIFFERENCE - MIN_SPLASH_DIFFERENCE) / 5 - 1,
+                    modifier = Modifier.semantics {
+                        contentDescription = "When to play the paint splash"
+                        stateDescription = "$value, plays for $meaning"
+                    },
+                )
+                if (value != DEFAULT_SPLASH_DIFFERENCE) {
+                    OutlinedButton(onClick = { onChange(settings.copy(splashDifference = DEFAULT_SPLASH_DIFFERENCE)) }) {
+                        AText("Reset to $DEFAULT_SPLASH_DIFFERENCE")
                     }
                 }
             }

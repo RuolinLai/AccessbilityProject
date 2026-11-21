@@ -1,11 +1,13 @@
 package com.emma_zara.accessbilityproject.ui.theme
 
+import android.provider.Settings as SystemSettings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalContext
 import com.emma_zara.accessbilityproject.settings.AppSettings
 import com.emma_zara.accessbilityproject.settings.AppTheme
 import com.emma_zara.accessbilityproject.settings.TextCasing
@@ -59,6 +61,19 @@ val LocalTextCasing = staticCompositionLocalOf { TextCasing.NORMAL }
 /** Lets screens add extra borders when high contrast is on. */
 val LocalHighContrast = staticCompositionLocalOf { false }
 
+/** False when animations are turned off, in the app or with Android's "Remove animations" setting. */
+val LocalMotion = staticCompositionLocalOf { true }
+
+/** How different a new color must be to play the paint splash (from Settings). */
+val LocalSplashDifference = staticCompositionLocalOf { 30 }
+
+/** True unless the phone's accessibility setting "Remove animations" is on. */
+@Composable
+fun systemAnimationsOn(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return SystemSettings.Global.getFloat(resolver, SystemSettings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
+}
+
 @Composable
 fun AccessbilityProjectTheme(
     settings: AppSettings,
@@ -73,6 +88,8 @@ fun AccessbilityProjectTheme(
     CompositionLocalProvider(
         LocalTextCasing provides settings.casing,
         LocalHighContrast provides (settings.theme == AppTheme.HIGH_CONTRAST),
+        LocalMotion provides (settings.animations && systemAnimationsOn()),
+        LocalSplashDifference provides settings.splashDifference,
     ) {
         MaterialTheme(
             colorScheme = colors,

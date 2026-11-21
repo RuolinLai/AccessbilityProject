@@ -4,6 +4,7 @@ import com.emma_zara.accessbilityproject.closet.Category
 import com.emma_zara.accessbilityproject.closet.ClothingItem
 import com.emma_zara.accessbilityproject.closet.MatchType
 import com.emma_zara.accessbilityproject.closet.SortOrder
+import com.emma_zara.accessbilityproject.closet.categoryForLabel
 import com.emma_zara.accessbilityproject.closet.findMatches
 import com.emma_zara.accessbilityproject.closet.isFashionNeutral
 import com.emma_zara.accessbilityproject.closet.matchType
@@ -70,5 +71,26 @@ class ClosetTest {
             if (x in 4..15 && y in 4..15) 0xFFDC1414.toInt() else 0xFFFFFFFF.toInt()
         }
         assertEquals(RgbColor(220, 20, 20), dominantColors(pixels, w, w).first())
+    }
+
+    @Test
+    fun maskOnlyCountsTheItem() {
+        // Mostly white background, but the mask says only the small blue patch is the item
+        val w = 20
+        val pixels = IntArray(w * w) { i -> if (i % w < 5) 0xFF1E3CB4.toInt() else 0xFFFFFFFF.toInt() }
+        val mask = BooleanArray(w * w) { i -> i % w < 5 }
+        assertEquals(listOf(RgbColor(30, 60, 180)), dominantColors(pixels, w, w, mask = mask))
+    }
+
+    @Test
+    fun turnsLabelsIntoCategories() {
+        assertEquals(Category.SHIRTS, categoryForLabel("T-shirt"))
+        assertEquals(Category.PANTS, categoryForLabel("Jeans"))
+        assertEquals(Category.SHOES, categoryForLabel("Sneakers"))
+        assertEquals(Category.BAGS, categoryForLabel("Handbag"))
+        assertEquals(Category.JEWELLERY, categoryForLabel("Earring"))
+        assertEquals(Category.DRESSES, categoryForLabel("Dress"))
+        assertNull(categoryForLabel("Dog"))
+        assertNull(categoryForLabel("Toppings")) // whole words only, not "top"
     }
 }
