@@ -94,19 +94,3 @@ fun findMatches(
         .filter { it.id != item.id && it.category != item.category && it.category in include && !patternsClash(item, it) }
         .mapNotNull { other -> matchItems(item, other)?.let { Match(other, it, lowContrast(item.color, other.color)) } }
         .sortedWith(compareBy({ it.type.ordinal }, { it.item.category.ordinal }))
-
-enum class SortOrder(val label: String) { NEWEST("Newest"), COLOR("Color"), CATEGORY("Category") }
-
-fun sortItems(items: List<ClothingItem>, order: SortOrder): List<ClothingItem> = when (order) {
-    SortOrder.NEWEST -> items.sortedByDescending { it.addedAt }
-    SortOrder.CATEGORY -> items.sortedWith(compareBy({ it.category.ordinal }, { it.name }))
-    // Rainbow order (by hue), with grays/black/white at the end from light to dark
-    SortOrder.COLOR -> items.sortedWith(
-        compareBy(
-            { it.color.toHsv().s < 0.15f || it.color.toHsv().v < 0.15f },
-            // +15 so reds just below 360 degrees (like 356) sort together with reds at 0
-            { (((it.color.toHsv().h + 15f) % 360f) / 15f).toInt() },
-            { -it.color.toLab().l },
-        ),
-    )
-}

@@ -2,6 +2,7 @@ package com.emma_zara.accessbilityproject.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +42,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import com.emma_zara.accessbilityproject.closet.Photos
+import com.emma_zara.accessbilityproject.color.ColorNames
+import com.emma_zara.accessbilityproject.color.dominantColors
+import com.emma_zara.accessbilityproject.ui.components.TappablePhoto
+import com.emma_zara.accessbilityproject.ui.components.colorAtFraction
+import com.emma_zara.accessbilityproject.ui.components.rememberPhotoPicker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -83,9 +100,18 @@ import com.emma_zara.accessbilityproject.ui.theme.LocalMotion
 import kotlinx.coroutines.launch
 
 /**
+ * A picture chosen from the gallery on the Identify tab.
+ * [tap] is where the user tapped (as a fraction of the width and height, 0 to 1), or null;
+ * [colors] are the main colors in it, so the user can also choose a color without tapping.
+ */
+data class PickedPhoto(val bitmap: Bitmap, val tap: Offset?, val colors: List<RgbColor>)
+
+/**
  * Color identifier: shows the camera, and describes the color under the circle in the middle.
  * The camera only runs while [cameraOn] is true, so it isn't on all the time.
+ * Instead of the camera, a [photo] from the gallery can be used: tap anywhere on it to read that color.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun IdentifyScreen(
     color: RgbColor,
@@ -93,8 +119,43 @@ fun IdentifyScreen(
     onOpenInWheel: () -> Unit,
     cameraOn: Boolean,
     onCameraOnChange: (Boolean) -> Unit,
+    photo: PickedPhoto?,
+    onPhotoChange: (PickedPhoto?) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var photoLoading by remember { mutableStateOf(false) }
+    var photoError by remember { mutableStateOf<String?>(null) }
+    // Loads the chosen picture, then reads the color in its middle (like the camera's circle)
+    val choosePhoto = rememberPhotoPicker(
+        onPicked = { uri ->
+            photoLoading = true
+            photoError = null
+            scope.launch {
+                val picked = withContext(Dispatchers.Default) {
+                    try {
+                        Photos.load(context, uri)?.let { bitmap ->
+                            val pixels = IntArray(bitmap.width * bitmap.height)
+                            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                            PickedPhoto(bitmap, Offset(0.5f, 0.5f), dominantColors(pixels, bitmap.width, bitmap.height, count = 5))
+                        }
+                    } catch (e: Throwable) {
+                        Log.e("IdentifyScreen", "Couldn't open photo $uri", e)
+                        null
+                    }
+                }
+                photoLoading = false
+                if (picked == null) {
+                    photoError = "Couldn't open that photo. Please try another one."
+                } else {
+                    onCameraOnChange(false)   // the camera isn't needed while looking at a photo
+                    onPhotoChange(picked)
+                    onColorChange(colorAtFraction(picked.bitmap, 0.5f, 0.5f))
+                }
+            }
+        },
+        onError = { photoError = it },
+    )
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
@@ -113,6 +174,7 @@ fun IdentifyScreen(
     fun turnOn() {
         frozen = false
         cameraError = null
+        onPhotoChange(null)
         if (hasPermission) onCameraOnChange(true) else permissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
@@ -123,9 +185,71 @@ fun IdentifyScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        ScreenTitle("Identify a color", "Point the circle at something.")
+        ScreenTitle(
+            "Identify a color",
+            if (photo != null) "Tap anywhere on the photo." else "Point the circle at something, or choose a photo.",
+        )
+
+        photoError?.let {
+            SectionCard { AText(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) }
+        }
 
         when {
+            photoLoading -> Column(
+                Modifier.fillMaxWidth().padding(48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                CircularProgressIndicator()
+                AText(
+                    "Opening the photo…",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+
+            photo != null -> SectionCard(title = "Photo") {
+                TappablePhoto(
+                    bitmap = photo.bitmap,
+                    tap = photo.tap,
+                    description = "Your photo. Tap a spot to hear its color.",
+                    onTap = { point, picked ->
+                        onPhotoChange(photo.copy(tap = point))
+                        onColorChange(picked)
+                    },
+                )
+                AText(
+                    "Tap a spot on the photo to read the color right there. Or choose one of the main colors:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    photo.colors.forEach { c ->
+                        FilterChip(
+                            selected = c == color,
+                            onClick = {
+                                onPhotoChange(photo.copy(tap = null))
+                                onColorChange(c)
+                            },
+                            label = { AText(ColorNames.nearest(c).name) },
+                            leadingIcon = {
+                                Box(
+                                    Modifier
+                                        .size(FilterChipDefaults.IconSize)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(c.toComposeColor())
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
+                                )
+                            },
+                        )
+                    }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = choosePhoto) { AText("Choose another photo") }
+                    TextButton(onClick = ::turnOn) { AText("Use the camera") }
+                }
+            }
+
             !cameraOn || !hasPermission -> SectionCard(title = "Camera is off") {
                 AText(
                     "Turn on the camera and point the circle at something to hear and read its color. " +
@@ -144,6 +268,11 @@ fun IdentifyScreen(
                     Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     AText("Turn on camera")
+                }
+                OutlinedButton(onClick = choosePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Icon(painterResource(R.drawable.ic_image), contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    AText("Choose a photo")
                 }
             }
 
@@ -168,13 +297,18 @@ fun IdentifyScreen(
                     Spacer(Modifier.width(8.dp))
                     AText("Turn off camera")
                 }
+                OutlinedButton(onClick = choosePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Icon(painterResource(R.drawable.ic_image), contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    AText("Choose a photo instead")
+                }
             }
         }
 
         // When frozen, screen readers announce the result
         Box(
             Modifier.semantics {
-                if (frozen) liveRegion = LiveRegionMode.Polite
+                if (frozen || photo != null) liveRegion = LiveRegionMode.Polite
             },
         ) {
             ColorHeroCard(analysis)
@@ -186,7 +320,11 @@ fun IdentifyScreen(
             AText("Adjust on the color wheel")
         }
 
-        MatchingColorsCard(analysis, onColorClick = { frozen = true; onColorChange(it) })
+        MatchingColorsCard(analysis, onColorClick = {
+            frozen = true
+            if (photo != null) onPhotoChange(photo.copy(tap = null))   // the color isn't from the photo anymore
+            onColorChange(it)
+        })
         CompositionCard(analysis)
     }
 }

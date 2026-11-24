@@ -11,19 +11,22 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import com.emma_zara.accessbilityproject.closet.ClosetRepository
+import com.emma_zara.accessbilityproject.closet.SharedItem
 import com.emma_zara.accessbilityproject.ui.theme.LocalMotion
 
 /** The pages inside the Closet tab. */
 sealed interface ClosetPage {
     data object List : ClosetPage
     data object Add : ClosetPage
-    data object Shop : ClosetPage
+    /** The shopping check, started with [shared] if something was shared from another app. */
+    data class Shop(val shared: SharedItem? = null) : ClosetPage
     data object WishList : ClosetPage
     data class Detail(val id: String) : ClosetPage
     /** Outfit ideas, built around one item if [anchorId] is given. */
@@ -33,9 +36,12 @@ sealed interface ClosetPage {
 /**
  * The Closet tab. Keeps a "back stack" of pages so the phone's back button
  * goes to the previous page (for example from an item back to the list).
+ *
+ * [incoming] is something shared from another app (like a product link): it opens the shopping check,
+ * then [onIncomingHandled] is called so it isn't opened twice.
  */
 @Composable
-fun ClosetTab(repo: ClosetRepository) {
+fun ClosetTab(repo: ClosetRepository, incoming: SharedItem? = null, onIncomingHandled: () -> Unit = {}) {
     val stack = remember { mutableStateListOf<ClosetPage>(ClosetPage.List) }
     var forward by remember { mutableStateOf(true) }   // which way the pages slide
     val motion = LocalMotion.current
@@ -60,6 +66,13 @@ fun ClosetTab(repo: ClosetRepository) {
 
     BackHandler(enabled = stack.size > 1) { back() }
 
+    LaunchedEffect(incoming) {
+        if (incoming != null) {
+            open(ClosetPage.Shop(incoming))
+            onIncomingHandled()
+        }
+    }
+
     // New pages slide in from the right; going back slides them away to the right
     AnimatedContent(
         targetState = stack.last(),
@@ -82,7 +95,7 @@ fun ClosetTab(repo: ClosetRepository) {
             onAdd = { open(ClosetPage.Add) },
             onOpen = { open(ClosetPage.Detail(it)) },
             onOutfits = { open(ClosetPage.Outfits(null)) },
-            onShop = { open(ClosetPage.Shop) },
+            onShop = { open(ClosetPage.Shop()) },
             onWishList = { open(ClosetPage.WishList) },
         )
 
@@ -90,12 +103,13 @@ fun ClosetTab(repo: ClosetRepository) {
             repo = repo,
             onBack = ::back,
             onOpen = { open(ClosetPage.Detail(it)) },
-            onShop = { open(ClosetPage.Shop) },
+            onShop = { open(ClosetPage.Shop()) },
         )
 
-        ClosetPage.Add, ClosetPage.Shop -> AddItemScreen(
+        ClosetPage.Add, is ClosetPage.Shop -> AddItemScreen(
             repo = repo,
-            shopping = page == ClosetPage.Shop,
+            shopping = page is ClosetPage.Shop,
+            shared = (page as? ClosetPage.Shop)?.shared,
             onBack = ::back,
             onSaved = { id ->
                 back()                          // close the "Add" page...

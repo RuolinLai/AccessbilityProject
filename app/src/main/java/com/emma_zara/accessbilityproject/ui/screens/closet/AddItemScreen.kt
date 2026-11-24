@@ -5,20 +5,13 @@ import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
-import android.os.ext.SdkExtensions
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -43,8 +36,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import android.content.ClipboardManager
+import android.content.Context
+import com.emma_zara.accessbilityproject.closet.LinkProblem
+import com.emma_zara.accessbilityproject.closet.ProductLink
+import com.emma_zara.accessbilityproject.closet.SharedItem
+import com.emma_zara.accessbilityproject.ui.components.TappablePhoto
+import com.emma_zara.accessbilityproject.ui.components.rememberPhotoPicker
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,12 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -89,7 +89,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.math.min
 
 /**
  * Add a piece of clothing: take or choose a photo, and the app finds the item's color (and, if it can,
@@ -97,15 +96,27 @@ import kotlin.math.min
  *
  * With [shopping] = true this is the "shopping check": take a photo of something in a store and see
  * what it goes with in your closet before you buy it. It is only saved if you choose to.
+ *
+ * The photo can also come from a shopping website link (pasted here, or [shared] from another app).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) -> Unit, shopping: Boolean = false) {
+fun AddItemScreen(
+    repo: ClosetRepository,
+    onBack: () -> Unit,
+    onSaved: (String) -> Unit,
+    shopping: Boolean = false,
+    shared: SharedItem? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var photo by remember { mutableStateOf<Bitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var loadingText by remember { mutableStateOf("") }
+    var linkText by remember { mutableStateOf("") }
+    // The product page the photo came from, saved with the item so it can be opened again
+    var link by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var detectedColors by remember { mutableStateOf<List<RgbColor>>(emptyList()) }
     var color by remember { mutableStateOf<RgbColor?>(null) }
@@ -120,9 +131,11 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
     var patternName by remember { mutableStateOf<String?>(null) }   // the user's own pattern, if chosen
     var name by remember { mutableStateOf("") }
 
-    // Loads the photo in the background, then finds the item, its colors and its category
-    fun usePhoto(uri: Uri) {
+    // Loads the photo in the background, then finds the item, its colors and its category.
+    // [fromLink] and [title] are set when the photo came from a shopping website.
+    fun usePhoto(uri: Uri, fromLink: String? = null, title: String? = null) {
         loading = true
+        loadingText = "Finding the item and its color…"
         error = null
         scope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -157,6 +170,37 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                 typeName = null
                 patternName = null
                 tapPoint = null
+                link = fromLink
+                if (title != null) name = title
+            }
+        }
+    }
+
+    // Downloads the product page, finds its photo, then uses it like a photo from the gallery
+    fun useLink(text: String) {
+        val url = ProductLink.findUrl(text)
+        if (url == null) {
+            error = "That doesn't look like a link. Copy the link from the shopping website or app and paste it here."
+            return
+        }
+        loading = true
+        loadingText = "Getting the photo from the website…"
+        error = null
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    Result.success(ProductLink.fetch(url, File(context.cacheDir, "shop")))
+                } catch (e: Throwable) {
+                    if (e !is LinkProblem) Log.e("AddItemScreen", "Couldn't use link $url", e)
+                    Result.failure(e)
+                }
+            }
+            result.onSuccess { page ->
+                usePhoto(Uri.fromFile(page.imageFile), fromLink = page.pageUrl, title = page.title)
+            }.onFailure { e ->
+                loading = false
+                error = (e as? LinkProblem)?.message
+                    ?: "Couldn't get a photo from that link. Save the picture and choose it from the gallery instead."
             }
         }
     }
@@ -179,30 +223,25 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) launchCamera() else error = "The camera permission is needed to take a photo."
     }
-    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) usePhoto(uri)
-    }
-
     fun takePhoto() {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) launchCamera() else cameraPermission.launch(Manifest.permission.CAMERA)
     }
-    // Older phones (like the Galaxy S9+ on Android 10) don't have Android's photo picker. The library would
-    // then use Google's backup picker, which on some phones doesn't open at all. So there we open the
-    // phone's own file chooser / gallery instead.
-    val getImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) usePhoto(uri)
-    }
-    fun choosePhoto() {
-        try {
-            if (hasSystemPhotoPicker()) {
-                pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            } else {
-                getImage.launch("image/*")
+    val choosePhoto = rememberPhotoPicker(
+        onPicked = { usePhoto(it) },
+        onError = { error = "$it Try taking a photo instead." },
+    )
+
+    // Something shared from another app (a product link or a picture): use it right away
+    LaunchedEffect(shared) {
+        when (shared) {
+            is SharedItem.Link -> {
+                linkText = shared.text
+                useLink(shared.text)
             }
-        } catch (e: ActivityNotFoundException) {
-            error = "No gallery app found. Try taking a photo instead."
+            is SharedItem.Image -> usePhoto(shared.uri)
+            null -> Unit
         }
     }
 
@@ -230,40 +269,57 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
             ) {
                 CircularProgressIndicator()
                 AText(
-                    "Finding the item and its color…",
+                    loadingText,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
 
-            currentPhoto == null -> SectionCard(title = if (shopping) "Thinking of buying something?" else "Step 1: Add a photo") {
-                AText(
-                    if (shopping) {
-                        "Take a photo of it in the store. The app reads its color and pattern and shows " +
-                            "what it goes with in your closet. Nothing is saved unless you choose to."
-                    } else {
-                        "Lay the item flat or hang it up, on a plain background, in good light. " +
-                            "Try to fill the photo with the item."
+            currentPhoto == null -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SectionCard(title = if (shopping) "Thinking of buying something?" else "Step 1: Add a photo") {
+                    AText(
+                        if (shopping) {
+                            "Take a photo of it in the store. The app reads its color and pattern and shows " +
+                                "what it goes with in your closet. Nothing is saved unless you choose to."
+                        } else {
+                            "Lay the item flat or hang it up, on a plain background, in good light. " +
+                                "Try to fill the photo with the item."
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Button(onClick = ::takePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                        Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        AText("Take a photo")
+                    }
+                    OutlinedButton(onClick = choosePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                        Icon(painterResource(R.drawable.ic_image), contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        AText("Choose from gallery")
+                    }
+                }
+                LinkCard(
+                    text = linkText,
+                    onTextChange = { linkText = it },
+                    onGo = { useLink(linkText) },
+                    onPaste = {
+                        val pasted = pasteText(context)
+                        if (pasted.isNullOrBlank()) {
+                            error = "There's nothing to paste. Copy the product's link first."
+                        } else {
+                            linkText = pasted
+                            useLink(pasted)
+                        }
                     },
-                    style = MaterialTheme.typography.bodyLarge,
                 )
-                Button(onClick = ::takePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                    Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    AText("Take a photo")
-                }
-                OutlinedButton(onClick = ::choosePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                    Icon(painterResource(R.drawable.ic_image), contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    AText("Choose from gallery")
-                }
             }
 
             else -> {
                 SectionCard(title = "Photo") {
                     TappablePhoto(
                         bitmap = currentPhoto,
-                        tapPoint = tapPoint,
+                        tap = tapPoint,
+                        description = "Photo of the item. Tap to pick a color.",
                         onTap = { point, picked ->
                             tapPoint = point
                             color = picked
@@ -274,9 +330,16 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    link?.let { url ->
+                        AText(
+                            "From ${Uri.parse(url).host?.removePrefix("www.") ?: "a website"}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = ::takePhoto) { AText("Retake photo") }
-                        TextButton(onClick = ::choosePhoto) { AText("Choose another") }
+                        TextButton(onClick = choosePhoto) { AText("Choose another") }
                     }
                 }
 
@@ -410,7 +473,7 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                     onClick = {
                         val item = repo.add(
                             name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto,
-                            typeName, patternName, extraColors = extras,
+                            typeName, patternName, extraColors = extras, link = link,
                         )
                         onSaved(item.id)
                     },
@@ -430,7 +493,7 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
                         onClick = {
                             val item = repo.add(
                                 name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto,
-                                typeName, patternName, wished = true, extraColors = extras,
+                                typeName, patternName, wished = true, extraColors = extras, link = link,
                             )
                             onSaved(item.id)
                         },
@@ -441,17 +504,6 @@ fun AddItemScreen(repo: ClosetRepository, onBack: () -> Unit, onSaved: (String) 
             }
         }
     }
-}
-
-/**
- * True only if Android's own photo picker is built in: Android 13+, or Android 11/12 with the updated
- * system component. (The library's isPhotoPickerAvailable() also says yes for Google's backup picker,
- * which is the one that didn't open on the Galaxy S9+.)
- */
-private fun hasSystemPhotoPicker(): Boolean {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return true
-    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-        SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= 2
 }
 
 /**
@@ -544,37 +596,41 @@ private fun ShoppingResults(repo: ClosetRepository, newItem: ClothingItem, photo
     }
 }
 
-/** The photo, sized to fit. Tapping it reads the color under your finger. */
+/** Paste a link to a product on a shopping website, and the app gets its photo. */
 @Composable
-private fun TappablePhoto(bitmap: Bitmap, tapPoint: Offset?, onTap: (Offset, RgbColor) -> Unit) {
-    val image = remember(bitmap) { bitmap.asImageBitmap() }
-    val ratio = bitmap.width.toFloat() / bitmap.height
-    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        // Fit inside the card width and at most 420dp tall, keeping the photo's shape
-        val height = min(maxWidth.value / ratio, 420f).dp
-        val width = (height.value * ratio).dp
-        Box(
-            Modifier
-                .size(width, height)
-                .clip(RoundedCornerShape(16.dp))
-                .pointerInput(bitmap) {
-                    detectTapGestures { pos ->
-                        val x = (pos.x / size.width * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
-                        val y = (pos.y / size.height * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
-                        onTap(pos, Photos.colorAt(bitmap, x, y))
-                    }
-                }
-                .semantics { contentDescription = "Photo of the item. Tap to pick a color." },
-        ) {
-            Image(image, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
-            if (tapPoint != null) {
-                Canvas(Modifier.fillMaxSize()) {
-                    drawCircle(Color.Black, 20.dp.toPx(), tapPoint, style = Stroke(5.dp.toPx()))
-                    drawCircle(Color.White, 20.dp.toPx(), tapPoint, style = Stroke(2.5.dp.toPx()))
-                }
+private fun LinkCard(text: String, onTextChange: (String) -> Unit, onGo: () -> Unit, onPaste: () -> Unit) {
+    SectionCard(title = "Or use a shopping website") {
+        AText(
+            "Copy the link to the product on the website or in the shopping app, then paste it here. " +
+                "You can also press Share on a product and choose Color Closet.",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        OutlinedTextField(
+            value = text,
+            onValueChange = onTextChange,
+            label = { AText("Product link") },
+            placeholder = { AText("https://…") },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+            keyboardActions = KeyboardActions(onGo = { if (text.isNotBlank()) onGo() }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onPaste, modifier = Modifier.heightIn(min = 56.dp)) { AText("Paste link") }
+            Button(onClick = onGo, enabled = text.isNotBlank(), modifier = Modifier.heightIn(min = 56.dp)) {
+                AText("Get the photo")
             }
         }
     }
+}
+
+/** The text the user copied last, or null. */
+private fun pasteText(context: Context): String? {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
+    val clip = clipboard.primaryClip ?: return null
+    if (clip.itemCount == 0) return null
+    return clip.getItemAt(0).coerceToText(context)?.toString()
 }
 
 /** A color the user can choose, with its name underneath. */

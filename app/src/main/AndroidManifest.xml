@@ -5,6 +5,8 @@
     <!-- Needed for the color identifier. required=false so the app still installs on devices without a camera. -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Used only to get product photos from shopping website links the user pastes or shares -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Lets the app find the phone's text-to-speech voice (for "Read aloud") on Android 11 and newer -->
     <queries>
@@ -42,11 +44,20 @@
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.AccessbilityProject"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Shows the app in the "Share" menu for links (from shopping apps and browsers) and pictures.
+                 singleTask above makes a share open the app that's already running, so there is only one closet. -->
+            <intent-filter android:label="Shopping check">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
     </application>

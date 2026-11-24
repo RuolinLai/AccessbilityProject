@@ -1,5 +1,6 @@
 package com.emma_zara.accessbilityproject
 
+import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.annotation.DrawableRes
@@ -37,12 +38,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import com.emma_zara.accessbilityproject.closet.BackgroundRemover
 import com.emma_zara.accessbilityproject.closet.ClosetRepository
+import com.emma_zara.accessbilityproject.closet.SharedItem
 import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.settings.AppSettings
 import com.emma_zara.accessbilityproject.settings.AppTheme
 import com.emma_zara.accessbilityproject.settings.SettingsStore
 import com.emma_zara.accessbilityproject.ui.components.AText
 import com.emma_zara.accessbilityproject.ui.screens.IdentifyScreen
+import com.emma_zara.accessbilityproject.ui.screens.PickedPhoto
 import com.emma_zara.accessbilityproject.ui.screens.SettingsScreen
 import com.emma_zara.accessbilityproject.ui.screens.WheelScreen
 import com.emma_zara.accessbilityproject.ui.screens.closet.ClosetTab
@@ -50,9 +53,14 @@ import com.emma_zara.accessbilityproject.ui.theme.AccessbilityProjectTheme
 import com.emma_zara.accessbilityproject.ui.theme.LocalMotion
 
 class MainActivity : ComponentActivity() {
+    /** A product link or picture shared from another app, waiting to be opened in the shopping check. */
+    private var shared by mutableStateOf<SharedItem?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settingsStore = SettingsStore(this)
+        // Only on the first start: after the screen rotates it was already handled
+        if (savedInstanceState == null) shared = SharedItem.from(intent)
 
         setContent {
             var settings by remember { mutableStateOf(settingsStore.load()) }
@@ -74,9 +82,17 @@ class MainActivity : ComponentActivity() {
                         settings = it
                         settingsStore.save(it)
                     },
+                    shared = shared,
+                    onSharedHandled = { shared = null },
                 )
             }
         }
+    }
+
+    // The app is already open and something new is shared to it
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        SharedItem.from(intent)?.let { shared = it }
     }
 }
 
@@ -89,12 +105,21 @@ enum class Tab(val label: String, @param:DrawableRes val icon: Int) {
 }
 
 @Composable
-fun App(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
+fun App(
+    settings: AppSettings,
+    onSettingsChange: (AppSettings) -> Unit,
+    shared: SharedItem? = null,
+    onSharedHandled: () -> Unit = {},
+) {
     var tab by rememberSaveable { mutableStateOf(Tab.IDENTIFY) }
+    // Something shared from another app goes to the shopping check in the Closet tab
+    LaunchedEffect(shared) { if (shared != null) tab = Tab.CLOSET }
     // The color currently being looked at, shared between the Identify and Color wheel tabs
     var color by remember { mutableStateOf(RgbColor(0x1E, 0x3A, 0x8A)) }
     // The camera starts off and only runs after the user turns it on (kept when switching tabs)
     var cameraOn by rememberSaveable { mutableStateOf(false) }
+    // A photo chosen from the gallery on the Identify tab (kept when switching tabs)
+    var identifyPhoto by remember { mutableStateOf<PickedPhoto?>(null) }
     // The digital closet, saved on the phone
     val context = LocalContext.current
     val closet = remember { ClosetRepository(context.applicationContext) }
@@ -153,8 +178,10 @@ fun App(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
                     onOpenInWheel = { tab = Tab.WHEEL },
                     cameraOn = cameraOn,
                     onCameraOnChange = { cameraOn = it },
+                    photo = identifyPhoto,
+                    onPhotoChange = { identifyPhoto = it },
                 )
-                Tab.CLOSET -> ClosetTab(closet)
+                Tab.CLOSET -> ClosetTab(closet, incoming = shared, onIncomingHandled = onSharedHandled)
                 Tab.WHEEL -> WheelScreen(color = color, onColorChange = { color = it })
                 Tab.SETTINGS -> SettingsScreen(settings = settings, onChange = onSettingsChange)
             }

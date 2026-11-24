@@ -51,8 +51,6 @@ import com.emma_zara.accessbilityproject.R
 import com.emma_zara.accessbilityproject.closet.Category
 import com.emma_zara.accessbilityproject.closet.ClosetRepository
 import com.emma_zara.accessbilityproject.closet.ClothingItem
-import com.emma_zara.accessbilityproject.closet.SortOrder
-import com.emma_zara.accessbilityproject.closet.sortItems
 import com.emma_zara.accessbilityproject.closet.summary
 import com.emma_zara.accessbilityproject.color.ColorNames
 import com.emma_zara.accessbilityproject.ui.components.AText
@@ -76,9 +74,9 @@ fun ClosetListScreen(
     val items = repo.items
     // null = show all, otherwise a built-in category's name or "own:" + the user's own type
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
-    var sort by rememberSaveable { mutableStateOf(SortOrder.NEWEST) }
     fun ClothingItem.filterKey() = typeName?.let { "own:$it" } ?: category.name
-    val shown = sortItems(items.filter { filter == null || it.filterKey() == filter }, sort)
+    // Newest first
+    val shown = items.filter { filter == null || it.filterKey() == filter }.sortedByDescending { it.addedAt }
     val filterLabel = filter?.let { f -> Category.entries.firstOrNull { it.name == f }?.label ?: f.removePrefix("own:") }
     val motion = LocalMotion.current
 
@@ -138,13 +136,6 @@ fun ClosetListScreen(
                         }
                     }
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    ChipRow("Sort by") {
-                        SortOrder.entries.forEach { s ->
-                            FilterChip(selected = sort == s, onClick = { sort = s }, label = { AText(s.label) })
-                        }
-                    }
-                }
             }
 
             when {
@@ -155,7 +146,7 @@ fun ClosetListScreen(
                     }
                 }
                 else -> itemsIndexed(shown, key = { _, it -> it.id }) { index, item ->
-                    // Cards pop in one by one, and glide to their new place when you change the sort
+                    // Cards pop in one by one, and glide to their new place when you change the filter
                     val move = if (motion) Modifier.animateItem() else Modifier
                     ItemCard(repo, item, move.popIn(index)) { onOpen(item.id) }
                 }

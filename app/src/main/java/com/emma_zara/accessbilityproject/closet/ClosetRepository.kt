@@ -156,11 +156,12 @@ class ClosetRepository(context: Context) {
         patternName: String? = null,
         wished: Boolean = false,
         extraColors: List<RgbColor> = emptyList(),
+        link: String? = null,
     ): ClothingItem {
         val id = UUID.randomUUID().toString()
         val fileName = "$id.jpg"
         FileOutputStream(File(photoDir, fileName)).use { photo.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-        val item = ClothingItem(id, name, category, color, fileName, System.currentTimeMillis(), pattern, typeName, patternName, wished, extraColors)
+        val item = ClothingItem(id, name, category, color, fileName, System.currentTimeMillis(), pattern, typeName, patternName, wished, extraColors, link)
         allItems = allItems + item
         save()
         return item
@@ -195,7 +196,8 @@ class ClosetRepository(context: Context) {
                     .put("typeName", item.typeName ?: JSONObject.NULL)
                     .put("patternName", item.patternName ?: JSONObject.NULL)
                     .put("wished", item.wished)
-                    .put("extraColors", JSONArray(item.extraColors.map { it.hex })),
+                    .put("extraColors", JSONArray(item.extraColors.map { it.hex }))
+                    .put("link", item.link ?: JSONObject.NULL),
             )
         }
         dataFile.writeText(array.toString(2))
@@ -226,6 +228,7 @@ class ClosetRepository(context: Context) {
                     extraColors = o.optJSONArray("extraColors")?.let { a ->
                         (0 until a.length()).map { parseHex(a.getString(it)) }
                     }.orEmpty(),
+                    link = o.optString("link").takeIf { !o.isNull("link") && it.isNotEmpty() },
                 )
             }
         } catch (e: Exception) {

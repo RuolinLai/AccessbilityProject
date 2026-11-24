@@ -1,5 +1,10 @@
 package com.emma_zara.accessbilityproject.ui.screens.closet
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -68,6 +73,7 @@ fun ItemDetailScreen(
     val analysis = analyzeColor(item.color)
     val matches = findMatches(item, repo.items, repo.suggestFrom)
     var confirmDelete by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val vision = LocalColorVision.current
     // Closet items that may look like the same color to the user, but aren't
     val mixUps = repo.items.filter { it.id != item.id && looksAlike(item.color, it.color, vision) }
@@ -114,6 +120,20 @@ fun ItemDetailScreen(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 ) { AText("I bought it: move to closet") }
             }
+        }
+
+        item.link?.let { url ->
+            val host = Uri.parse(url).host?.removePrefix("www.") ?: "the website"
+            OutlinedButton(
+                onClick = {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    } catch (e: ActivityNotFoundException) {
+                        Toast.makeText(context, "No browser found to open the link.", Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            ) { AText("Open the product page on $host") }
         }
 
         if (item.extraColors.isNotEmpty()) {

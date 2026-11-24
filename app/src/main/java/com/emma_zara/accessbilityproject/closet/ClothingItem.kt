@@ -44,6 +44,8 @@ data class ClothingItem(
     val wished: Boolean = false,
     /** Other colors on it besides the main [color], like the white in navy-and-white stripes. */
     val extraColors: List<RgbColor> = emptyList(),
+    /** The shopping website page it came from, or null if it was photographed or picked from the gallery. */
+    val link: String? = null,
 )
 
 /**

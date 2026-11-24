@@ -3,12 +3,10 @@ package com.emma_zara.accessbilityproject
 import com.emma_zara.accessbilityproject.closet.Category
 import com.emma_zara.accessbilityproject.closet.ClothingItem
 import com.emma_zara.accessbilityproject.closet.MatchType
-import com.emma_zara.accessbilityproject.closet.SortOrder
 import com.emma_zara.accessbilityproject.closet.categoryForLabel
 import com.emma_zara.accessbilityproject.closet.findMatches
 import com.emma_zara.accessbilityproject.closet.isFashionNeutral
 import com.emma_zara.accessbilityproject.closet.matchType
-import com.emma_zara.accessbilityproject.closet.sortItems
 import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.color.dominantColors
 import org.junit.Assert.assertEquals
@@ -46,19 +44,6 @@ class ClosetTest {
         val pants = item("pants", Category.PANTS, RgbColor(255, 255, 255))
         val matches = findMatches(shirt, listOf(shirt, otherShirt, pants))
         assertEquals(listOf("pants"), matches.map { it.item.id })
-    }
-
-    @Test
-    fun sortByColorPutsGraysLast() {
-        val gray = item("gray", Category.SHIRTS, RgbColor(128, 128, 128))
-        val blue = item("blue", Category.SHIRTS, RgbColor(0, 0, 255))
-        val red = item("red", Category.SHIRTS, RgbColor(255, 0, 0))
-        val crimson = item("crimson", Category.SHIRTS, RgbColor(200, 30, 40)) // hue 356, just below 360
-        // Both reds come first (crimson's hue 356 wraps around to the start), then blue, grays last.
-        assertEquals(
-            listOf("crimson", "red", "blue", "gray"),
-            sortItems(listOf(gray, blue, crimson, red), SortOrder.COLOR).map { it.id },
-        )
     }
 
     @Test
