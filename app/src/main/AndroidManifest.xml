@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Used only to get product photos from shopping website links the user pastes or shares -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- A short buzz when the color changes (can be turned off in Settings) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Rough location (about 1 km), only if the user chooses "Use my location" for the weather -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Lets the app find the phone's text-to-speech voice (for "Read aloud") on Android 11 and newer -->
     <queries>

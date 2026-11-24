@@ -46,7 +46,81 @@ data class ClothingItem(
     val extraColors: List<RgbColor> = emptyList(),
     /** The shopping website page it came from, or null if it was photographed or picked from the gallery. */
     val link: String? = null,
+    /** Where it's good to wear. Empty means the user didn't say, so it can be used for anything. */
+    val occasions: Set<Occasion> = emptySet(),
+    /** What weather it's for, or null if it's fine in any weather. */
+    val warmth: Warmth? = null,
 )
+
+/** Where you're going, for outfit recommendations. */
+enum class Occasion(val label: String, val tip: String) {
+    SCHOOL("School", "Comfortable pieces you can sit and move in all day."),
+    FORMAL("Formal", "Plain pieces in calm colors like black, navy, white, gray or beige look the dressiest. Skip busy patterns."),
+    SPORT("Sport", "Stretchy, breathable clothes and sports shoes. Leave jewellery at home so it doesn't get lost or hurt you."),
+    HOME("Home", "Comfy clothes for staying in, like pajamas or loungewear."),
+}
+
+/** Names that sound like clothes only worn at home (pajamas, loungewear...). */
+private val HomeWords = Regex("""pajama|pyjama|\bpjs?\b|sleep|night ?gown|nightie|nightwear|lounge|\brobe|bathrobe""", RegexOption.IGNORE_CASE)
+
+/**
+ * True if this piece is only for home: marked only "Home", or not marked at all but named like
+ * sleepwear (like the user's own type "Pajama"). Home pieces are never mixed with going-out clothes.
+ */
+val ClothingItem.homeOnly: Boolean
+    get() = occasions == setOf(Occasion.HOME) ||
+        (occasions.isEmpty() && HomeWords.containsMatchIn("${typeName.orEmpty()} $name"))
+
+/** True if the app guessed [homeOnly] from the name (the user didn't choose it). */
+val ClothingItem.homeGuessed: Boolean get() = occasions.isEmpty() && homeOnly
+
+/** Where on the body a piece goes. Two pieces in the same spot can't be worn together. */
+enum class Slot { TOP, BOTTOM, ONE_PIECE, FEET, BAG, ACCESSORY }
+
+val Category.slot: Slot
+    get() = when (this) {
+        Category.SHIRTS -> Slot.TOP
+        Category.PANTS, Category.SKIRTS -> Slot.BOTTOM
+        Category.DRESSES -> Slot.ONE_PIECE
+        Category.SHOES -> Slot.FEET
+        Category.BAGS -> Slot.BAG
+        Category.JEWELLERY -> Slot.ACCESSORY
+    }
+
+/**
+ * Can these two kinds of pieces be part of one outfit? Not two in the same spot (pants with a skirt),
+ * and not a dress with a top or bottom (a dress already is both).
+ */
+fun canWearTogether(a: Category, b: Category): Boolean {
+    val sa = a.slot
+    val sb = b.slot
+    if (sa == sb) return false
+    val clothes = setOf(Slot.TOP, Slot.BOTTOM)
+    if (sa == Slot.ONE_PIECE && sb in clothes || sb == Slot.ONE_PIECE && sa in clothes) return false
+    return true
+}
+
+/**
+ * Do these two pieces suit the same places? Home-only pieces only go with other home pieces,
+ * and two pieces marked for completely different occasions (like Sport and Formal) don't mix.
+ * Pieces with no occasions chosen fit anywhere (except with home-only pieces).
+ */
+fun sameOccasion(a: ClothingItem, b: ClothingItem): Boolean {
+    val aHome = a.homeOnly
+    val bHome = b.homeOnly
+    if (aHome || bHome) {
+        fun homeOk(x: ClothingItem) = x.homeOnly || Occasion.HOME in x.occasions
+        return homeOk(a) && homeOk(b)
+    }
+    if (a.occasions.isEmpty() || b.occasions.isEmpty()) return true
+    return a.occasions.any { it in b.occasions }
+}
+
+/** What weather a piece is for. */
+enum class Warmth(val label: String, val description: String) {
+    LIGHT("Hot days", "Light and thin, like a T-shirt, shorts or a summer dress"),
+    WARM("Cold days", "Warm and thick, like a sweater, a coat or boots"),
+}
 
 /**
  * A type the user made up, like "Jacket" or "Hat".

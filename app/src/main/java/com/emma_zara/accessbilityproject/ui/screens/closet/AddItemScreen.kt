@@ -1,5 +1,6 @@
 package com.emma_zara.accessbilityproject.ui.screens.closet
 
+import com.emma_zara.accessbilityproject.ui.components.LocalBottomBarSpace
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
@@ -47,6 +48,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import android.content.ClipboardManager
 import android.content.Context
 import com.emma_zara.accessbilityproject.closet.LinkProblem
+import com.emma_zara.accessbilityproject.closet.Occasion
+import com.emma_zara.accessbilityproject.closet.Warmth
 import com.emma_zara.accessbilityproject.closet.ProductLink
 import com.emma_zara.accessbilityproject.closet.SharedItem
 import com.emma_zara.accessbilityproject.ui.components.TappablePhoto
@@ -130,20 +133,25 @@ fun AddItemScreen(
     var typeName by remember { mutableStateOf<String?>(null) }      // the user's own type, if chosen
     var patternName by remember { mutableStateOf<String?>(null) }   // the user's own pattern, if chosen
     var name by remember { mutableStateOf("") }
+    var occasions by remember { mutableStateOf<Set<Occasion>>(emptySet()) }
+    var warmth by remember { mutableStateOf<Warmth?>(null) }
 
-    // Loads the photo in the background, then finds the item, its colors and its category.
+    // A website that only works in a browser: (address, why it was opened). Shows the app's browser.
+    var browser by remember { mutableStateOf<Pair<String, String?>?>(null) }
+
+    // Loads the photo in the background (with [load]), then finds the item, its colors and its category.
     // [fromLink] and [title] are set when the photo came from a shopping website.
-    fun usePhoto(uri: Uri, fromLink: String? = null, title: String? = null) {
+    fun scanPhoto(load: () -> Bitmap?, fromLink: String? = null, title: String? = null) {
         loading = true
         loadingText = "Finding the item and its color…"
         error = null
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
-                    Photos.load(context, uri)?.let { it to ItemScanner.scan(it) }
+                    load()?.let { it to ItemScanner.scan(it) }
                 } catch (e: Throwable) {
                     // Never crash on a strange photo (for example one that is too big for memory)
-                    Log.e("AddItemScreen", "Couldn't use photo $uri", e)
+                    Log.e("AddItemScreen", "Couldn't use photo", e)
                     null
                 }
             }
@@ -176,6 +184,27 @@ fun AddItemScreen(
         }
     }
 
+    fun usePhoto(uri: Uri, fromLink: String? = null, title: String? = null) =
+        scanPhoto({ Photos.load(context, uri) }, fromLink, title)
+
+    // The user tapped "Use this product" in the app's browser: download the product photo, or if that
+    // doesn't work, use the picture of what was on the screen
+    fun usePick(pick: BrowserPick) {
+        browser = null
+        scanPhoto(
+            load = {
+                val file = pick.imageUrl?.let { url ->
+                    runCatching {
+                        ProductLink.downloadImage(url, File(context.cacheDir, "shop"), pick.userAgent, pick.cookies)
+                    }.getOrNull()
+                }
+                file?.let { Photos.load(context, Uri.fromFile(it)) } ?: pick.screenshot
+            },
+            fromLink = pick.pageUrl,
+            title = pick.title,
+        )
+    }
+
     // Downloads the product page, finds its photo, then uses it like a photo from the gallery
     fun useLink(text: String) {
         val url = ProductLink.findUrl(text)
@@ -199,8 +228,13 @@ fun AddItemScreen(
                 usePhoto(Uri.fromFile(page.imageFile), fromLink = page.pageUrl, title = page.title)
             }.onFailure { e ->
                 loading = false
-                error = (e as? LinkProblem)?.message
-                    ?: "Couldn't get a photo from that link. Save the picture and choose it from the gallery instead."
+                val browserUrl = (e as? LinkProblem)?.browserUrl
+                if (browserUrl != null) {
+                    browser = browserUrl to e.message
+                } else {
+                    error = (e as? LinkProblem)?.message
+                        ?: "Couldn't get a photo from that link. Save the picture and choose it from the gallery instead."
+                }
             }
         }
     }
@@ -245,10 +279,16 @@ fun AddItemScreen(
         }
     }
 
+    browser?.let { (url, message) ->
+        ProductBrowser(url, message, onClose = { browser = null }, onPick = ::usePick)
+        return
+    }
+
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = LocalBottomBarSpace.current)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -457,6 +497,10 @@ fun AddItemScreen(
                     )
                     ShoppingResults(repo, newItem, currentPhoto)
                 }
+                WhenToWearCard(occasions, warmth, title = "When to wear it (optional)") { o, w ->
+                    occasions = o
+                    warmth = w
+                }
                 SectionCard(title = "Name (optional)") {
                     OutlinedTextField(
                         value = name,
@@ -474,6 +518,7 @@ fun AddItemScreen(
                         val item = repo.add(
                             name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto,
                             typeName, patternName, extraColors = extras, link = link,
+                            occasions = occasions, warmth = warmth,
                         )
                         onSaved(item.id)
                     },
@@ -494,6 +539,7 @@ fun AddItemScreen(
                             val item = repo.add(
                                 name.trim().ifEmpty { defaultName }, category!!, color!!, pattern, currentPhoto,
                                 typeName, patternName, wished = true, extraColors = extras, link = link,
+                                occasions = occasions, warmth = warmth,
                             )
                             onSaved(item.id)
                         },

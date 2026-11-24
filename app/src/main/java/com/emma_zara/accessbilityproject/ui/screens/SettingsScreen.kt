@@ -1,5 +1,6 @@
 package com.emma_zara.accessbilityproject.ui.screens
 
+import com.emma_zara.accessbilityproject.ui.components.LocalBottomBarSpace
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,6 +72,7 @@ fun SettingsScreen(settings: AppSettings, onChange: (AppSettings) -> Unit) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = LocalBottomBarSpace.current)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -94,6 +96,14 @@ fun SettingsScreen(settings: AppSettings, onChange: (AppSettings) -> Unit) {
                 AppTheme.entries.forEach { theme ->
                     ThemeOption(theme, selected = settings.theme == theme) { onChange(settings.copy(theme = theme)) }
                 }
+            }
+            if (settings.theme == AppTheme.GLASS) {
+                AText(
+                    "The colorful background behind the glass can make colors on the screen look a little different. " +
+                        "When checking a color carefully, Light or Dark shows it most accurately.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -221,6 +231,33 @@ fun SettingsScreen(settings: AppSettings, onChange: (AppSettings) -> Unit) {
             }
         }
 
+        SectionCard(title = "Vibration") {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .toggleable(
+                        value = settings.vibrate,
+                        role = Role.Switch,
+                        onValueChange = { onChange(settings.copy(vibrate = it)) },
+                    )
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    AText("Vibrate when the color changes", style = MaterialTheme.typography.titleMedium)
+                    AText(
+                        "A short buzz when the color you're pointing at or tapping gets a new name, " +
+                            "so you can feel it without looking at the screen.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = settings.vibrate, onCheckedChange = null)
+            }
+        }
+
         SectionCard(title = "Motion") {
             val systemOn = systemAnimationsOn()
             Row(
@@ -297,6 +334,7 @@ private fun ThemeOption(theme: AppTheme, selected: Boolean, onClick: () -> Unit)
         AppTheme.LIGHT -> Color(0xFFFFFFFF) to Color(0xFF1A1A1A)
         AppTheme.DARK -> Color(0xFF1C1C1C) to Color(0xFFECECEC)
         AppTheme.HIGH_CONTRAST -> Color.Black to Color(0xFFFFFF00)
+        AppTheme.GLASS -> Color(0xFFDCD8F5) to Color(0xFF1E2030)
     }
     val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
 

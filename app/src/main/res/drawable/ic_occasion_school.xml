@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- School (a backpack) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF000000" android:pathData="M9,2h6a2,2 0,0 1,2 2v1.2c2.3,0.8 4,3 4,5.6V20a2,2 0,0 1,-2 2H5a2,2 0,0 1,-2 -2v-9.2c0,-2.6 1.7,-4.8 4,-5.6V4a2,2 0,0 1,2 -2zM9,4v0.9h6V4zM7,13v5h10v-5zM9,14.5h6v1.5H9z" />
+</vector>

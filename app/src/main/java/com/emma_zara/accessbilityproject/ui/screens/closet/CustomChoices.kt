@@ -49,7 +49,7 @@ import com.emma_zara.accessbilityproject.ui.components.AText
 
 /** A chip with a check mark when chosen, so it doesn't depend on seeing colors. */
 @Composable
-private fun ChoiceChip(label: String, selected: Boolean, description: String? = null, onClick: () -> Unit) {
+internal fun ChoiceChip(label: String, selected: Boolean, description: String? = null, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
         onClick = onClick,

@@ -77,13 +77,16 @@ data class Match(val item: ClothingItem, val type: MatchType, val lowContrast: B
 fun patternsClash(a: ClothingItem, b: ClothingItem): Boolean =
     a.pattern.busy && b.pattern.busy && a.category != Category.JEWELLERY && b.category != Category.JEWELLERY
 
-/** True if [a] and [b] can be worn together: their colors follow a rule and their patterns don't clash. */
+/**
+ * True if [a] and [b] can be worn together: they go on different parts of the body, suit the same
+ * occasions, their colors follow a rule and their patterns don't clash.
+ */
 fun goTogether(a: ClothingItem, b: ClothingItem): Boolean =
-    matchItems(a, b) != null && !patternsClash(a, b)
+    canWearTogether(a.category, b.category) && sameOccasion(a, b) && matchItems(a, b) != null && !patternsClash(a, b)
 
 /**
- * Finds items in OTHER categories that go with [item], best matches first.
- * Only items in the [include] categories are suggested.
+ * Finds items that can be worn with [item] (a dress isn't worn with a shirt, pajamas aren't worn out),
+ * best matches first. Only items in the [include] categories are suggested.
  */
 fun findMatches(
     item: ClothingItem,
@@ -91,6 +94,9 @@ fun findMatches(
     include: Set<Category> = Category.entries.toSet(),
 ): List<Match> =
     closet
-        .filter { it.id != item.id && it.category != item.category && it.category in include && !patternsClash(item, it) }
+        .filter {
+            it.id != item.id && it.category in include && canWearTogether(item.category, it.category) &&
+                sameOccasion(item, it) && !patternsClash(item, it)
+        }
         .mapNotNull { other -> matchItems(item, other)?.let { Match(other, it, lowContrast(item.color, other.color)) } }
         .sortedWith(compareBy({ it.type.ordinal }, { it.item.category.ordinal }))

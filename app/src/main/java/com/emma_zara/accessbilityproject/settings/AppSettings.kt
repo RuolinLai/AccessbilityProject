@@ -7,6 +7,7 @@ enum class AppTheme(val label: String) {
     LIGHT("Light"),
     DARK("Dark"),
     HIGH_CONTRAST("High contrast (yellow on black)"),
+    GLASS("Frosted glass"),
 }
 
 enum class TextCasing(val label: String) {
@@ -32,6 +33,8 @@ data class AppSettings(
     val splashDifference: Int = DEFAULT_SPLASH_DIFFERENCE,
     /** The user's kind of color vision, so the app can warn about colors that may look alike to them. */
     val colorVision: ColorVision = ColorVision.TYPICAL,
+    /** A short buzz when the color being looked at gets a new name. */
+    val vibrate: Boolean = true,
 )
 
 const val DEFAULT_SPLASH_DIFFERENCE = 30
@@ -51,6 +54,7 @@ class SettingsStore(context: Context) {
         splashDifference = prefs.getInt("splashDifference", DEFAULT_SPLASH_DIFFERENCE)
             .coerceIn(MIN_SPLASH_DIFFERENCE, MAX_SPLASH_DIFFERENCE),
         colorVision = enumOrDefault(prefs.getString("colorVision", null), ColorVision.TYPICAL),
+        vibrate = prefs.getBoolean("vibrate", true),
     )
 
     fun save(settings: AppSettings) {
@@ -62,6 +66,7 @@ class SettingsStore(context: Context) {
             .putBoolean("animations", settings.animations)
             .putInt("splashDifference", settings.splashDifference)
             .putString("colorVision", settings.colorVision.name)
+            .putBoolean("vibrate", settings.vibrate)
             .apply()
     }
 

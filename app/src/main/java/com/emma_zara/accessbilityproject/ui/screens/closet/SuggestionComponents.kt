@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -36,13 +35,10 @@ import com.emma_zara.accessbilityproject.closet.Category
 import com.emma_zara.accessbilityproject.closet.ClosetRepository
 import com.emma_zara.accessbilityproject.closet.ClothingItem
 import com.emma_zara.accessbilityproject.closet.Match
-import com.emma_zara.accessbilityproject.closet.Outfit
-import com.emma_zara.accessbilityproject.closet.reasons
 import com.emma_zara.accessbilityproject.closet.summary
 import com.emma_zara.accessbilityproject.ui.components.AText
 import com.emma_zara.accessbilityproject.color.ColorNames
 import com.emma_zara.accessbilityproject.color.looksAlike
-import com.emma_zara.accessbilityproject.ui.components.SectionCard
 import com.emma_zara.accessbilityproject.ui.theme.LocalColorVision
 
 /** Id used for a new item that isn't saved in the closet yet (shopping check). */
@@ -141,42 +137,6 @@ fun MatchRow(repo: ClosetRepository, base: ClothingItem, match: Match, reason: S
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 76.dp),
-            )
-        }
-    }
-}
-
-/**
- * A whole outfit: every piece with its photo, then why it works, in words.
- * [newPhoto] is the photo of the new (not saved) item, if the outfit has one.
- */
-@Composable
-fun OutfitCard(
-    repo: ClosetRepository,
-    outfit: Outfit,
-    title: String,
-    modifier: Modifier = Modifier,
-    newPhoto: Bitmap? = null,
-    onOpen: ((String) -> Unit)? = null,
-) {
-    SectionCard(modifier, title = title) {
-        outfit.items.forEach { item ->
-            val isNew = item.id == NEW_ITEM_ID
-            ItemRow(
-                repo,
-                item,
-                newPhoto = if (isNew) newPhoto else null,
-                onClick = if (isNew || onOpen == null) null else ({ onOpen(item.id) }),
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        AText("Why it works", style = MaterialTheme.typography.titleMedium)
-        outfit.reasons(LocalColorVision.current).forEach {
-            AText(
-                "• $it",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp),
             )
         }
     }

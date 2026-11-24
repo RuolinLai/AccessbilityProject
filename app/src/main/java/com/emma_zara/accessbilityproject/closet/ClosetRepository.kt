@@ -157,11 +157,16 @@ class ClosetRepository(context: Context) {
         wished: Boolean = false,
         extraColors: List<RgbColor> = emptyList(),
         link: String? = null,
+        occasions: Set<Occasion> = emptySet(),
+        warmth: Warmth? = null,
     ): ClothingItem {
         val id = UUID.randomUUID().toString()
         val fileName = "$id.jpg"
         FileOutputStream(File(photoDir, fileName)).use { photo.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-        val item = ClothingItem(id, name, category, color, fileName, System.currentTimeMillis(), pattern, typeName, patternName, wished, extraColors, link)
+        val item = ClothingItem(
+            id, name, category, color, fileName, System.currentTimeMillis(), pattern, typeName, patternName, wished,
+            extraColors, link, occasions, warmth,
+        )
         allItems = allItems + item
         save()
         return item
@@ -197,7 +202,9 @@ class ClosetRepository(context: Context) {
                     .put("patternName", item.patternName ?: JSONObject.NULL)
                     .put("wished", item.wished)
                     .put("extraColors", JSONArray(item.extraColors.map { it.hex }))
-                    .put("link", item.link ?: JSONObject.NULL),
+                    .put("link", item.link ?: JSONObject.NULL)
+                    .put("occasions", JSONArray(item.occasions.map { it.name }))
+                    .put("warmth", item.warmth?.name ?: JSONObject.NULL),
             )
         }
         dataFile.writeText(array.toString(2))
@@ -229,6 +236,11 @@ class ClosetRepository(context: Context) {
                         (0 until a.length()).map { parseHex(a.getString(it)) }
                     }.orEmpty(),
                     link = o.optString("link").takeIf { !o.isNull("link") && it.isNotEmpty() },
+                    // Items saved before occasions and weather existed are fine for anything
+                    occasions = o.optJSONArray("occasions")?.let { a ->
+                        (0 until a.length()).mapNotNull { j -> Occasion.entries.firstOrNull { it.name == a.getString(j) } }.toSet()
+                    }.orEmpty(),
+                    warmth = Warmth.entries.firstOrNull { !o.isNull("warmth") && it.name == o.optString("warmth") },
                 )
             }
         } catch (e: Exception) {

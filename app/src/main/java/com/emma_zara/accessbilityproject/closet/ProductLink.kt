@@ -8,8 +8,12 @@ import java.net.URL
 /** What we got from a shopping website link: the product photo (saved in [imageFile]) and its name, if found. */
 data class ProductPage(val imageFile: File, val title: String?, val pageUrl: String)
 
-/** A problem with the link, with a message that can be shown to the user as it is. */
-class LinkProblem(message: String) : Exception(message)
+/**
+ * A problem with the link, with a message that can be shown to the user as it is.
+ * If [browserUrl] is set, the page may still work when opened in the app's browser
+ * (some websites only show their pages to real browsers, or build them with JavaScript).
+ */
+class LinkProblem(message: String, val browserUrl: String? = null) : Exception(message)
 
 /**
  * Gets the product photo from a shopping website link.
@@ -25,6 +29,9 @@ object ProductLink {
     private val ATTRIBUTE = Regex("""([a-zA-Z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
     private val TITLE_TAG = Regex("""<title[^>]*>([^<]*)</title>""", RegexOption.IGNORE_CASE)
     private val JSON_IMAGE = Regex(""""image"\s*:\s*\[?\s*(?:\{[^}]*?"url"\s*:\s*)?"([^"]+)"""")
+    // Amazon has no og:image: its big product photo is in data-a-hires / data-old-hires, or "hiRes" in its scripts
+    private val AMAZON_IMAGE = Regex("""data-(?:a-hires|old-hires)\s*=\s*"(https://[^"]+)"""")
+    private val HIRES_IMAGE = Regex(""""hiRes"\s*:\s*"(https://[^"]+)"""")
 
     /** The meta tags that can hold the product photo, best first. */
     private val IMAGE_KEYS = listOf("og:image:secure_url", "og:image", "og:image:url", "twitter:image", "twitter:image:src")
@@ -64,7 +71,9 @@ object ProductLink {
             ?: meta("image") // itemprop="image"
             ?: LINK_TAG.findAll(html).map { attributes(it.value) }
                 .firstOrNull { it["rel"].equals("image_src", ignoreCase = true) }?.get("href")
+            ?: AMAZON_IMAGE.find(html)?.groupValues?.get(1)
             ?: JSON_IMAGE.find(html)?.groupValues?.get(1)?.replace("\\/", "/")
+            ?: HIRES_IMAGE.find(html)?.groupValues?.get(1)
 
         val title = (meta("og:title") ?: meta("twitter:title") ?: TITLE_TAG.find(html)?.groupValues?.get(1))
             ?.let { cleanTitle(decodeEntities(it)) }
@@ -88,19 +97,11 @@ object ProductLink {
             val html = readText(connection)
             val found = parse(html, pageUrl)
             val imageUrl = found.imageUrl ?: throw LinkProblem(
-                "Couldn't find a product photo on that page. Make sure it's the link to one product " +
-                    "(not a search or a list), or save the picture and choose it from the gallery.",
+                "Couldn't find the product photo in that page directly, so it's opened in the app's browser.",
+                browserUrl = pageUrl,
             )
             connection.disconnect()
-            val imageConnection = connect(imageUrl)
-            try {
-                if (!imageConnection.contentType.orEmpty().startsWith("image/", ignoreCase = true)) {
-                    throw LinkProblem("The website's product photo couldn't be downloaded. Save the picture and choose it from the gallery instead.")
-                }
-                return ProductPage(save(imageConnection, dir), found.title, pageUrl)
-            } finally {
-                imageConnection.disconnect()
-            }
+            return ProductPage(downloadImage(imageUrl, dir), found.title, pageUrl)
         } catch (e: LinkProblem) {
             throw e
         } catch (e: IOException) {
@@ -110,8 +111,31 @@ object ProductLink {
         }
     }
 
-    /** Opens the link, following redirects (short links like "a.co/..." redirect a few times). */
-    private fun connect(url: String): HttpURLConnection {
+    /**
+     * Downloads a product photo into [dir]. Blocks, so call it off the main thread.
+     * [userAgent] and [cookies] come from the app's browser when the photo was found there,
+     * since some websites only send their photos to the browser that opened the page.
+     */
+    fun downloadImage(url: String, dir: File, userAgent: String? = null, cookies: String? = null): File {
+        val c = try {
+            connect(url, userAgent, cookies)
+        } catch (e: LinkProblem) {
+            throw LinkProblem("The website's product photo couldn't be downloaded.")
+        }
+        try {
+            if (!c.contentType.orEmpty().startsWith("image/", ignoreCase = true)) {
+                throw LinkProblem("The website's product photo couldn't be downloaded.")
+            }
+            return save(c, dir)
+        } catch (e: IOException) {
+            throw LinkProblem("Couldn't download the product photo. Check the internet connection and try again.")
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    /** Opens the link, following redirects (short links like "share.google/..." redirect a few times). */
+    private fun connect(url: String, userAgent: String? = null, cookies: String? = null): HttpURLConnection {
         var current = url
         repeat(6) {
             val parsed = try {
@@ -124,7 +148,8 @@ object ProductLink {
             c.instanceFollowRedirects = false
             c.connectTimeout = 10_000
             c.readTimeout = 15_000
-            c.setRequestProperty("User-Agent", USER_AGENT)
+            c.setRequestProperty("User-Agent", userAgent ?: USER_AGENT)
+            if (cookies != null) c.setRequestProperty("Cookie", cookies)
             c.setRequestProperty("Accept", "text/html,application/xhtml+xml,image/*;q=0.9,*/*;q=0.8")
             c.setRequestProperty("Accept-Language", "en")
             val code = try {
@@ -143,9 +168,10 @@ object ProductLink {
                 }
                 401, 403, 429, 503 -> {
                     c.disconnect()
+                    val site = runCatching { URL(current).host.removePrefix("www.").removePrefix("shop.") }.getOrDefault("That website")
                     throw LinkProblem(
-                        "That website doesn't let apps read its pages. Instead, save the product picture and choose " +
-                            "it from the gallery, or use the website's Share button on the picture and pick Color Closet.",
+                        "$site only shows its pages in a browser, so it's opened in the app's browser.",
+                        browserUrl = current,
                     )
                 }
                 404, 410 -> {
@@ -210,7 +236,7 @@ object ProductLink {
     }
 
     /** Website titles are often like "Cotton T-Shirt | ShopName": keep the product part, and not too long. */
-    private fun cleanTitle(title: String): String? {
+    fun cleanTitle(title: String): String? {
         val t = title.split(" | ").first().replace(Regex("\\s+"), " ").trim()
         if (t.isEmpty()) return null
         return if (t.length <= 60) t else t.take(57).trimEnd() + "…"

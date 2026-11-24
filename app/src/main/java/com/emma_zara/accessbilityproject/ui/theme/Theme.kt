@@ -7,6 +7,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.emma_zara.accessbilityproject.color.ColorVision
 import com.emma_zara.accessbilityproject.settings.AppSettings
@@ -56,6 +57,53 @@ private val HighContrastColors = darkColorScheme(
     outline = HcYellow, outlineVariant = HcYellow,
 )
 
+/** A deep blue card with white text and light blue buttons (used on the light theme). */
+private val NavyCardColors = DarkColors.copy(
+    primary = Indigo80, onPrimary = Indigo30,
+    surface = Navy, onSurface = Color.White,
+    surfaceContainer = Navy, surfaceContainerLow = Navy, surfaceContainerLowest = Navy,
+    surfaceContainerHigh = NavyHigh, surfaceContainerHighest = NavyHighest,
+    surfaceVariant = NavyHigh, onSurfaceVariant = NavyTextDim,
+    outline = NavyOutline, outlineVariant = NavyHighest,
+    error = Color(0xFFFFB4AB),
+)
+
+/** A light blue card with dark blue text and deep blue buttons (used on the dark theme). */
+private val SkyCardColors = LightColors.copy(
+    primary = Indigo40, onPrimary = Color.White,
+    surface = SkyBlue, onSurface = SkyText,
+    surfaceContainer = SkyBlue, surfaceContainerLow = SkyBlue, surfaceContainerLowest = SkyBlue,
+    surfaceContainerHigh = SkyBlueHigh, surfaceContainerHighest = SkyBlueHighest,
+    surfaceVariant = SkyBlueHigh, onSurfaceVariant = SkyTextDim,
+    outline = SkyOutline, outlineVariant = SkyBlueHighest,
+)
+
+/**
+ * Frosted glass: see-through white panels over a soft colorful background (drawn by the app behind
+ * everything). Text is dark slate; filled buttons are dark glass with white text so they stay easy to read.
+ */
+private val GlassColors = lightColorScheme(
+    primary = GlassSlate, onPrimary = Color.White,
+    primaryContainer = GlassPanelHigh, onPrimaryContainer = GlassText,
+    secondary = GlassSlate, onSecondary = Color.White,
+    secondaryContainer = GlassPanelHigh, onSecondaryContainer = GlassText,
+    tertiary = GlassSlate, onTertiary = Color.White,
+    background = Color.Transparent, onBackground = GlassText,
+    surface = GlassPanel, onSurface = GlassText,
+    surfaceVariant = GlassPanel, onSurfaceVariant = GlassTextDim,
+    surfaceContainerLowest = GlassPanel, surfaceContainerLow = GlassPanel,
+    surfaceContainer = GlassPanel, surfaceContainerHigh = GlassPanelHigh,
+    surfaceContainerHighest = GlassPanelHighest,
+    outline = GlassOutline, outlineVariant = GlassEdge,
+    inverseSurface = GlassText, inverseOnSurface = Color.White,
+)
+
+/** True when the frosted glass theme is on: glass panels get a bright edge, the tab bar floats. */
+val LocalGlass = staticCompositionLocalOf { false }
+
+/** True on the dark theme (and high contrast), for colors that need a dark version. */
+val LocalDarkTheme = staticCompositionLocalOf { false }
+
 /** Lets any screen know the chosen letter casing (Compose has no built-in "text-transform"). */
 val LocalTextCasing = staticCompositionLocalOf { TextCasing.NORMAL }
 
@@ -70,6 +118,12 @@ val LocalSplashDifference = staticCompositionLocalOf { 30 }
 
 /** The user's kind of color vision (from Settings). */
 val LocalColorVision = staticCompositionLocalOf { ColorVision.TYPICAL }
+
+/** The opposite theme's colors (dark if the app is light, light if it's dark), for cards that stand out. */
+val LocalInvertedColors = staticCompositionLocalOf { DarkColors }
+
+/** True if the phone should buzz when the color changes (from Settings). */
+val LocalVibrate = staticCompositionLocalOf { true }
 
 /** True unless the phone's accessibility setting "Remove animations" is on. */
 @Composable
@@ -87,14 +141,27 @@ fun AccessbilityProjectTheme(
         AppTheme.LIGHT -> LightColors
         AppTheme.DARK -> DarkColors
         AppTheme.HIGH_CONTRAST -> HighContrastColors
+        AppTheme.GLASS -> GlassColors
+    }
+    // Colors for a card that should stand out: deep blue on the light theme, light blue on the dark theme.
+    // High contrast stays yellow on black; glass stays glass.
+    val inverted = when (settings.theme) {
+        AppTheme.LIGHT -> NavyCardColors
+        AppTheme.DARK -> SkyCardColors
+        AppTheme.HIGH_CONTRAST -> HighContrastColors
+        AppTheme.GLASS -> GlassColors
     }
 
     CompositionLocalProvider(
+        LocalInvertedColors provides inverted,
+        LocalGlass provides (settings.theme == AppTheme.GLASS),
+        LocalDarkTheme provides (settings.theme == AppTheme.DARK || settings.theme == AppTheme.HIGH_CONTRAST),
         LocalTextCasing provides settings.casing,
         LocalHighContrast provides (settings.theme == AppTheme.HIGH_CONTRAST),
         LocalMotion provides (settings.animations && systemAnimationsOn()),
         LocalSplashDifference provides settings.splashDifference,
         LocalColorVision provides settings.colorVision,
+        LocalVibrate provides settings.vibrate,
     ) {
         MaterialTheme(
             colorScheme = colors,

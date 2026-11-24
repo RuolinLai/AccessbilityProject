@@ -1,5 +1,6 @@
 package com.emma_zara.accessbilityproject.ui.screens
 
+import com.emma_zara.accessbilityproject.ui.components.LocalBottomBarSpace
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -89,6 +90,7 @@ import com.emma_zara.accessbilityproject.R
 import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.color.analyzeColor
 import com.emma_zara.accessbilityproject.ui.components.AText
+import com.emma_zara.accessbilityproject.ui.components.VibrateOnColorChange
 import com.emma_zara.accessbilityproject.ui.components.ColorHeroCard
 import com.emma_zara.accessbilityproject.ui.components.CompositionCard
 import com.emma_zara.accessbilityproject.ui.components.MatchingColorsCard
@@ -170,6 +172,7 @@ fun IdentifyScreen(
         if (it) onCameraOnChange(true)
     }
     val analysis = analyzeColor(color)
+    VibrateOnColorChange(analysis.name)
 
     fun turnOn() {
         frozen = false
@@ -182,6 +185,7 @@ fun IdentifyScreen(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = LocalBottomBarSpace.current)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

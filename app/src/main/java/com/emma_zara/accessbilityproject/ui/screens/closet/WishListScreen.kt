@@ -1,5 +1,6 @@
 package com.emma_zara.accessbilityproject.ui.screens.closet
 
+import com.emma_zara.accessbilityproject.ui.components.LocalBottomBarSpace
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ fun WishListScreen(repo: ClosetRepository, onBack: () -> Unit, onOpen: (String) 
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = LocalBottomBarSpace.current)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

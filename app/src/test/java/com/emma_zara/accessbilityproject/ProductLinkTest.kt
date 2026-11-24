@@ -60,6 +60,20 @@ class ProductLinkTest {
     }
 
     @Test
+    fun readsAmazonProductPhoto() {
+        val html = """<title>Amazon.ca : Midi Dress</title>
+            <img id="main-image" data-a-image-name="mainImage" data-a-hires="https://m.media-amazon.com/images/I/71kb._AC_UY1000_.jpg">
+            <script>var data = {"hiRes":"https://m.media-amazon.com/images/I/other.jpg"};</script>"""
+        assertEquals("https://m.media-amazon.com/images/I/71kb._AC_UY1000_.jpg", ProductLink.parse(html, "https://www.amazon.ca/dp/1").imageUrl)
+    }
+
+    @Test
+    fun readsHiResFromScriptsWhenNothingElse() {
+        val html = """<script>P.when('A').register("ImageBlockATF", function(){ var d = {"hiRes":"https://m.media-amazon.com/images/I/abc.jpg","thumb":"x"}; });</script>"""
+        assertEquals("https://m.media-amazon.com/images/I/abc.jpg", ProductLink.parse(html, "https://www.amazon.ca/dp/1").imageUrl)
+    }
+
+    @Test
     fun pageWithoutImageGivesNull() {
         assertNull(ProductLink.parse("<html><title>Search results</title></html>", "https://example.com/").imageUrl)
     }

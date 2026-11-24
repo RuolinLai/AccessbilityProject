@@ -31,6 +31,34 @@ val NeutralDarkTextDim = Color(0xFFBDBDBD)
 val NeutralDarkOutline = Color(0xFF8F8F8F)
 val NeutralDarkOutlineSoft = Color(0xFF3D3D3D)
 
+// The weather card: deep blue on the light theme, light blue on the dark theme (same family as the accent)
+val Navy = Color(0xFF232A6E)
+val NavyHigh = Color(0xFF323A85)        // boxes inside the navy card
+val NavyHighest = Color(0xFF424B99)
+val NavyTextDim = Color(0xFFCDD2F5)
+val NavyOutline = Color(0xFF9AA2DD)
+val SkyBlue = Color(0xFFE0E3FF)
+val SkyBlueHigh = Color(0xFFCCD1FA)     // boxes inside the light blue card
+val SkyBlueHighest = Color(0xFFB9BFF2)
+val SkyText = Color(0xFF161A4A)
+val SkyTextDim = Color(0xFF383E7A)
+val SkyOutline = Color(0xFF5A61A3)
+
+// Frosted glass theme: see-through white panels over a soft colorful background, with slate (gray-blue) accents
+val GlassText = Color(0xFF1E2030)
+val GlassTextDim = Color(0xFF474B60)
+val GlassSlate = Color(0xE62E3248)        // dark glass: filled buttons
+val GlassPanel = Color(0x8CFFFFFF)        // cards
+val GlassPanelHigh = Color(0xB3FFFFFF)    // boxes inside cards, chosen tab
+val GlassPanelHighest = Color(0xD9FFFFFF) // dialogs, menus
+val GlassEdge = Color(0xB3FFFFFF)         // the bright edge around glass
+val GlassOutline = Color(0xFF8A8FA3)
+// The colorful background behind the glass
+val GlassBg1 = Color(0xFFC8D4F5)
+val GlassBg2 = Color(0xFFE6D3F2)
+val GlassBg3 = Color(0xFFFBDCCF)
+val GlassBg4 = Color(0xFFCFEDE2)
+
 // High contrast theme: yellow text on black background
 val HcYellow = Color(0xFFFFFF00)
 val HcBlack = Color(0xFF000000)

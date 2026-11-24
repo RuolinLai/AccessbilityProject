@@ -1,5 +1,11 @@
 package com.emma_zara.accessbilityproject.ui.screens.closet
 
+import com.emma_zara.accessbilityproject.ui.theme.GlassEdge
+import com.emma_zara.accessbilityproject.ui.theme.LocalGlass
+import com.emma_zara.accessbilityproject.ui.components.LocalBottomBarSpace
+import androidx.compose.material3.FloatingActionButtonDefaults
+import com.emma_zara.accessbilityproject.ui.components.panelBorder
+import com.emma_zara.accessbilityproject.ui.components.ItemTags
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,10 +22,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -79,21 +85,25 @@ fun ClosetListScreen(
     val shown = items.filter { filter == null || it.filterKey() == filter }.sortedByDescending { it.addedAt }
     val filterLabel = filter?.let { f -> Category.entries.firstOrNull { it.name == f }?.label ?: f.removePrefix("own:") }
     val motion = LocalMotion.current
+    val bottomSpace = LocalBottomBarSpace.current
+    val glass = LocalGlass.current
 
     Box(Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+        // Like a Pinterest board: each card sits right under the one above it in its column,
+        // so cards of different heights don't leave gaps
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp + bottomSpace),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalItemSpacing = 12.dp,
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item(span = StaggeredGridItemSpan.FullLine) {
                 ScreenTitle("My closet", if (items.size == 1) "1 item" else "${items.size} items")
             }
 
             if (repo.wishList.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     OutlinedButton(onClick = onWishList, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                         AText("Wish list (${repo.wishList.size})")
                     }
@@ -101,7 +111,7 @@ fun ClosetListScreen(
             }
 
             if (items.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         FilledTonalButton(onClick = onOutfits, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
                             AText("Outfit ideas", textAlign = TextAlign.Center)
@@ -111,7 +121,7 @@ fun ClosetListScreen(
                         }
                     }
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     ChipRow("Show") {
                         FilterChip(
                             selected = filter == null,
@@ -139,8 +149,8 @@ fun ClosetListScreen(
             }
 
             when {
-                items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) { EmptyCloset(onAdd) }
-                shown.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
+                items.isEmpty() -> item(span = StaggeredGridItemSpan.FullLine) { EmptyCloset(onAdd) }
+                shown.isEmpty() -> item(span = StaggeredGridItemSpan.FullLine) {
                     SectionCard {
                         AText("No ${filterLabel?.lowercase()} yet.", style = MaterialTheme.typography.bodyLarge)
                     }
@@ -158,9 +168,13 @@ fun ClosetListScreen(
                 onClick = onAdd,
                 icon = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
                 text = { AText("Add clothes") },
+                // In the glass theme: no shadow (it shows through the glass as a box) and a bright edge instead
+                elevation = if (glass) FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp) else FloatingActionButtonDefaults.elevation(),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .padding(bottom = bottomSpace)
+                    .then(if (glass) Modifier.border(1.dp, GlassEdge, RoundedCornerShape(16.dp)) else Modifier),
             )
         }
     }
@@ -210,7 +224,7 @@ private fun ItemCard(repo: ClosetRepository, item: ClothingItem, modifier: Modif
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        border = if (highContrast) BorderStroke(2.dp, MaterialTheme.colorScheme.outline) else null,
+        border = panelBorder(),
         modifier = modifier.semantics(mergeDescendants = true) {
             contentDescription = "${item.name}. ${item.summary()}"
         },
@@ -225,22 +239,7 @@ private fun ItemCard(repo: ClosetRepository, item: ClothingItem, modifier: Modif
             )
             Column(Modifier.padding(12.dp)) {
                 AText(item.name, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                    Box(
-                        Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(item.color.toComposeColor())
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                            .clearAndSetSemantics {},
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    AText(
-                        item.summary(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                ItemTags(item, small = true, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }

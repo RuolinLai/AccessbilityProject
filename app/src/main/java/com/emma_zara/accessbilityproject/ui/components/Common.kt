@@ -44,7 +44,7 @@ fun SectionCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        border = if (highContrast) BorderStroke(2.dp, MaterialTheme.colorScheme.outline) else null,
+        border = panelBorder(),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (title != null) {

@@ -1,5 +1,6 @@
 package com.emma_zara.accessbilityproject.ui.screens
 
+import com.emma_zara.accessbilityproject.ui.components.LocalBottomBarSpace
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,7 @@ import com.emma_zara.accessbilityproject.color.RgbColor
 import com.emma_zara.accessbilityproject.color.analyzeColor
 import com.emma_zara.accessbilityproject.color.toHsv
 import com.emma_zara.accessbilityproject.ui.components.AText
+import com.emma_zara.accessbilityproject.ui.components.VibrateOnColorChange
 import com.emma_zara.accessbilityproject.ui.components.ColorHeroCard
 import com.emma_zara.accessbilityproject.ui.components.ColorWheel
 import com.emma_zara.accessbilityproject.ui.components.CompositionCard
@@ -58,11 +60,13 @@ fun WheelScreen(color: RgbColor, onColorChange: (RgbColor) -> Unit) {
     }
 
     val analysis = analyzeColor(color)
+    VibrateOnColorChange(analysis.name)
 
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = LocalBottomBarSpace.current)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
